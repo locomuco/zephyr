@@ -25,7 +25,7 @@ menuconfig SPI
 
 config SPI_QMSI
 	bool "QMSI driver for SPI controller"
-	depends on SPI && QMSI
+	depends on SPI && QMSI && SPI_LEGACY_API
 	default n
 	help
 	  SPI driver implementation using QMSI library. QMSI is the
@@ -34,7 +34,7 @@ config SPI_QMSI
 
 config SPI_QMSI_SS
 	bool "QMSI driver for SPI controller on Sensor Subsystem"
-	depends on SPI && QMSI
+	depends on SPI && QMSI && SPI_LEGACY_API
 	default n
 	help
 	  SPI driver implementation using QMSI library. This instance is
@@ -43,7 +43,7 @@ config SPI_QMSI_SS
 config SPI_INTEL
 	bool
 	prompt "Intel SPI controller driver"
-	depends on SPI && CPU_MINUTEIA
+	depends on SPI && CPU_MINUTEIA && SPI_LEGACY_API
 	default n
 	help
 	  Enable support for Intel's SPI controllers. Such controller
