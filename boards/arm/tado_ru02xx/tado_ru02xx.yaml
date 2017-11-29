@@ -1,0 +1,7 @@
+identifier: tado_ru02xx
+name: TADO_RU02XX
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gccarmemb

@@ -1,0 +1,25 @@
+CONFIG_ARM=y
+CONFIG_SOC_FAMILY_NRF5=y
+CONFIG_SOC_SERIES_NRF52X=y
+CONFIG_SOC_NRF52832_QFAA=y
+CONFIG_BOARD_TADO_RU02XX=y
+
+# Enable MPU
+CONFIG_ARM_MPU_NRF52X=y
+
+# Do not use UART driver by default for stdout
+# CONFIG_SERIAL is not set
+# CONFIG_UART_NRF5 is not set
+
+# Enable console and use RTT by default for log output
+CONFIG_CONSOLE=y
+CONFIG_STDOUT_CONSOLE=y
+CONFIG_HAS_SEGGER_RTT=y
+CONFIG_RTT_CONSOLE=y
+
+# Additional board options
+CONFIG_GPIO_AS_PINRESET=y
+
+# Bluetooth
+CONFIG_BT=n
+#CONFIG_BT_CTLR=y
