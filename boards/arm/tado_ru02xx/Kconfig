@@ -10,4 +10,8 @@ config  GPIO_AS_PINRESET
 	bool "GPIO as pin reset (reset button)"
 	default y
 
+config NFCT_PINS_AS_GPIOS
+	bool "NFCT pins as GPIO"
+	default y
+
 endif # BOARD_TADO_RU02XX
