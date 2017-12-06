@@ -94,7 +94,7 @@ static int spi_flash_wb_reg_write(struct device *dev, u8_t *data)
 	wait_for_flash_idle(dev);
 
 	if (spi_transceive(driver_data->spi, data, 1,
-			   &buf /*dummy */, 1) != 0) {
+			   &buf /*dummy */, 0) != 0) {
 		return -EIO;
 	}
 
