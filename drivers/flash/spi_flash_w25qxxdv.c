@@ -30,7 +30,7 @@ static inline int spi_flash_wb_id(struct device *dev)
 	temp_data |= ((u32_t) buf[2]) << 8;
 	temp_data |= (u32_t) buf[3];
 
-	if (temp_data != W25QXXDV_RDID_VALUE) {
+	if (temp_data != CONFIG_SPI_FLASH_W25QXXDV_RDID) {
 		return -ENODEV;
 	}
 
