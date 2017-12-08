@@ -7,9 +7,10 @@ CONFIG_BOARD_TADO_RU02XX=y
 # Enable MPU
 CONFIG_ARM_MPU_NRF52X=y
 
+# Enable generic Serial driver necessary for SPI
+CONFIG_SERIAL=y
 # Do not use UART driver by default for stdout
-# CONFIG_SERIAL is not set
-# CONFIG_UART_NRF5 is not set
+# CONFIG_UART_CONSOLE is not set
 
 # Enable console and use RTT by default for log output
 CONFIG_CONSOLE=y
@@ -19,6 +20,7 @@ CONFIG_RTT_CONSOLE=y
 
 # Additional board options
 CONFIG_GPIO_AS_PINRESET=y
+CONFIG_NFCT_PINS_AS_GPIOS=y
 
 # Bluetooth
 CONFIG_BT=n

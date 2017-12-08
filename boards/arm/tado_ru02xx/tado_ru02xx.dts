@@ -54,8 +54,7 @@
 		};
 		scratch_partition: partition@70000 {
 			label = "image-scratch";
-			reg = <0x00070000 0x1000>; 
-			// reg = <0x00070000 0xC800>; // causes problems for mcuboot
+			reg = <0x00070000 0xd000>;
 		};
 
 		/*

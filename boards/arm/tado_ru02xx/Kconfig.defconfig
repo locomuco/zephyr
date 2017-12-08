@@ -9,6 +9,16 @@ if BOARD_TADO_RU02XX
 config BOARD
 	default tado_ru02xx
 
+if SOC_FLASH_NRF5 
+
+# Avoid MCUB-90 bug on nRF5x targets:
+# mcuboot cannot detect default flash page size without this API and fallbacks
+# to strange defaults/hacks. 
+config FLASH_PAGE_LAYOUT
+	default y
+
+endif # SOC_FLASH_NRF5
+
 if GPIO_NRF5
 
 config GPIO_NRF5_P0

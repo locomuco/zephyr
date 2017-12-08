@@ -9,6 +9,10 @@
 
 #include <soc.h>
 
+/* GUI Button */
+#define GPIO_GUI_BUTTON_PIN 	5
+#define GPIO_GUI_BUTTON_NAME	CONFIG_GPIO_NRF5_P0_DEV_NAME
+
 /* Push button switch 0 */
 #define SW0_GPIO_PIN	13
 #define SW0_GPIO_NAME	CONFIG_GPIO_NRF5_P0_DEV_NAME
