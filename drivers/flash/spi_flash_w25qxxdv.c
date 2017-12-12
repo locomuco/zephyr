@@ -345,11 +345,30 @@ static int spi_flash_wb_erase(struct device *dev, off_t offset, size_t size)
 	return ret;
 }
 
+#if defined(CONFIG_FLASH_PAGE_LAYOUT)
+/* Equally-sized memory blocks for W25QXXDV and similar chips, e.g. MX25R8035F */
+const static struct flash_pages_layout dev_layout = {
+	.pages_count = (CONFIG_SPI_FLASH_W25QXXDV_FLASH_SIZE / W25QXXDV_SECTOR_SIZE),
+	.pages_size = W25QXXDV_SECTOR_SIZE,
+};
+
+static void spi_flash_pages_layout(struct device *dev,
+				     const struct flash_pages_layout **layout,
+				     size_t *layout_size)
+{
+	*layout = &dev_layout;
+	*layout_size = 1;
+}
+#endif /* CONFIG_FLASH_PAGE_LAYOUT */
+
 static const struct flash_driver_api spi_flash_api = {
 	.read = spi_flash_wb_read,
 	.write = spi_flash_wb_write,
 	.erase = spi_flash_wb_erase,
 	.write_protection = spi_flash_wb_write_protection_set,
+#if defined(CONFIG_FLASH_PAGE_LAYOUT)
+	.page_layout = spi_flash_pages_layout,
+#endif /* CONFIG_FLASH_PAGE_LAYOUT */
 	.write_block_size = 1,
 };
 
