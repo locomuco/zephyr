@@ -13,6 +13,7 @@
 #include "spi_flash_w25qxxdv_defs.h"
 #include "spi_flash_w25qxxdv.h"
 
+#if CONFIG_FLASH_RDID_VERIFY
 static inline int spi_flash_wb_id(struct device *dev)
 {
 	struct spi_flash_data *const driver_data = dev->driver_data;
@@ -30,12 +31,13 @@ static inline int spi_flash_wb_id(struct device *dev)
 	temp_data |= ((u32_t) buf[2]) << 8;
 	temp_data |= (u32_t) buf[3];
 
-	if (temp_data != W25QXXDV_RDID_VALUE) {
+	if (temp_data != CONFIG_SPI_FLASH_W25QXXDV_RDID) {
 		return -ENODEV;
 	}
 
 	return 0;
 }
+#endif /* CONFIG_FLASH_RDID_VERIFY */
 
 static int spi_flash_wb_config(struct device *dev)
 {
@@ -56,7 +58,11 @@ static int spi_flash_wb_config(struct device *dev)
 		return -EIO;
 	}
 
+#if CONFIG_FLASH_RDID_VERIFY
 	return spi_flash_wb_id(dev);
+#else /* CONFIG_FLASH_RDID_VERIFY */
+	return 0;
+#endif /* CONFIG_FLASH_RDID_VERIFY */
 }
 
 static int spi_flash_wb_reg_read(struct device *dev, u8_t *data)
@@ -94,7 +100,7 @@ static int spi_flash_wb_reg_write(struct device *dev, u8_t *data)
 	wait_for_flash_idle(dev);
 
 	if (spi_transceive(driver_data->spi, data, 1,
-			   &buf /*dummy */, 1) != 0) {
+			   &buf /*dummy */, 0) != 0) {
 		return -EIO;
 	}
 
@@ -339,11 +345,30 @@ static int spi_flash_wb_erase(struct device *dev, off_t offset, size_t size)
 	return ret;
 }
 
+#if defined(CONFIG_FLASH_PAGE_LAYOUT)
+/* Equally-sized memory blocks for W25QXXDV and similar chips, e.g. MX25R8035F */
+const static struct flash_pages_layout dev_layout = {
+	.pages_count = (CONFIG_SPI_FLASH_W25QXXDV_FLASH_SIZE / W25QXXDV_SECTOR_SIZE),
+	.pages_size = W25QXXDV_SECTOR_SIZE,
+};
+
+static void spi_flash_pages_layout(struct device *dev,
+				     const struct flash_pages_layout **layout,
+				     size_t *layout_size)
+{
+	*layout = &dev_layout;
+	*layout_size = 1;
+}
+#endif /* CONFIG_FLASH_PAGE_LAYOUT */
+
 static const struct flash_driver_api spi_flash_api = {
 	.read = spi_flash_wb_read,
 	.write = spi_flash_wb_write,
 	.erase = spi_flash_wb_erase,
 	.write_protection = spi_flash_wb_write_protection_set,
+#if defined(CONFIG_FLASH_PAGE_LAYOUT)
+	.page_layout = spi_flash_pages_layout,
+#endif /* CONFIG_FLASH_PAGE_LAYOUT */
 	.write_block_size = 1,
 };
 

@@ -23,6 +23,14 @@ config FLASH_PAGE_LAYOUT
 	help
 	  Enables API for retrieving the layout of flash memory pages.
 
+config FLASH_RDID_VERIFY
+	bool "Verify flash cip RDID on initialization"
+	depends on FLASH
+	default y
+	help
+	  If supported by the respective driver, verify the RDID of the flash chip
+	  it is talking to. If disabled, any check is omitted.
+
 config SPI_FLASH_W25QXXDV
 	bool
 	prompt "SPI NOR Flash Winbond W25QXXDV"
@@ -64,6 +72,18 @@ config	SPI_FLASH_W25QXXDV_SPI_SLAVE
 	help
 	  This option sets the SPI slave number the SPI controller has to switch
 	  to when dealing with WinBond SPI flash chip.
+
+config SPI_FLASH_W25QXXDV_RDID
+	hex "Chip-specific RDID"
+	depends on SPI_FLASH_W25QXXDV
+	range 0x000000 0xffffff
+	default 0xef4015
+	help
+	  This options sets a custom RDID. This allows this flash driver to be
+		reused for similar flash chips, i.e. for chips with a different
+		memory type or memory density, or even a divergent vendor with 
+		compatible interface.
+		Note that the chip's RDID is verified before each	transaction. 
 
 config SPI_FLASH_W25QXXDV_FLASH_SIZE
 	int "flash size in bytes"
