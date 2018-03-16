@@ -1,4 +1,4 @@
-# Kconfig - flash driver configuration options
+# Kconfig - Flash driver configuration options
 
 #
 # Copyright (c) 2016 Intel Corporation
@@ -7,18 +7,31 @@
 #
 
 #
-# flash driver
+# Flash driver
 #
+config FLASH_HAS_DRIVER_ENABLED
+	bool
+	default n
+	help
+	  This option is enabled when any flash driver is enabled.
+
+config FLASH_HAS_PAGE_LAYOUT
+	bool
+	default n
+	help
+	  This option is enabled when the SoC flash driver supports
+	  retrieving the layout of flash memory pages.
+
 menuconfig FLASH
 	bool
-	prompt "flash hardware support"
+	prompt "Flash hardware support"
 	default n
 	help
 	  Enable support for the flash hardware.
 
 config FLASH_PAGE_LAYOUT
 	bool "API for retrieving the layout of pages"
-	depends on FLASH
+	depends on FLASH && FLASH_HAS_PAGE_LAYOUT
 	default n
 	help
 	  Enables API for retrieving the layout of flash memory pages.
@@ -34,17 +47,18 @@ config FLASH_RDID_VERIFY
 config SPI_FLASH_W25QXXDV
 	bool
 	prompt "SPI NOR Flash Winbond W25QXXDV"
+	select FLASH_HAS_DRIVER_ENABLED
 	depends on SPI && FLASH
 
 config SPI_FLASH_W25QXXDV_SPI_NAME
 	string
-	prompt "spi controller device name"
+	prompt "SPI controller device name"
 	depends on SPI_FLASH_W25QXXDV
 	default ""
 
 config SPI_FLASH_W25QXXDV_DRV_NAME
 	string
-	prompt "spi flash device name"
+	prompt "SPI flash device name"
 	depends on SPI_FLASH_W25QXXDV
 	default "W25QXXDV"
 
@@ -67,7 +81,7 @@ config SPI_FLASH_W25QXXDV_SPI_FREQ_0
 	  clock.
 
 config	SPI_FLASH_W25QXXDV_SPI_SLAVE
-	int "SPI slave linked to spi flash"
+	int "SPI slave linked to SPI flash"
 	depends on SPI_FLASH_W25QXXDV
 	help
 	  This option sets the SPI slave number the SPI controller has to switch
@@ -86,7 +100,7 @@ config SPI_FLASH_W25QXXDV_RDID
 		Note that the chip's RDID is verified before each	transaction. 
 
 config SPI_FLASH_W25QXXDV_FLASH_SIZE
-	int "flash size in bytes"
+	int "Flash size in bytes"
 	depends on SPI_FLASH_W25QXXDV
 	default 2097152
 	help
@@ -104,6 +118,7 @@ config SOC_FLASH_QMSI
 	bool
 	prompt "QMSI flash driver"
 	depends on QMSI && FLASH
+	select FLASH_HAS_DRIVER_ENABLED
 	default n
 	help
 	  Enable QMSI Quark flash driver.
@@ -116,7 +131,7 @@ config SOC_FLASH_QMSI_DEV_NAME
 	  Specify the device name for the flash driver.
 
 config SOC_FLASH_QMSI_CLK_COUNT_US
-	int "system clk count per microsecond"
+	int "System clk count per microsecond"
 	depends on SOC_FLASH_QMSI
 	default 32
 	help
@@ -147,15 +162,10 @@ config SOC_FLASH_NRF5
 	bool "Nordic Semiconductor nRF5X flash driver"
 	depends on FLASH && SOC_FAMILY_NRF5
 	default n
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_DRIVER_ENABLED
 	help
 	  Enables Nordic Semiconductor nRF5X flash driver.
-
-config SOC_FLASH_NRF5_DEV_NAME
-	string "Nordic nRF5X flash device name"
-	depends on SOC_FLASH_NRF5
-	default "NRF5_FLASH"
-	help
-	  Specify the device name for the flash driver.
 
 config SOC_FLASH_NRF5_RADIO_SYNC
 	bool "Nordic nRF5x flash driver synchronized with radio"
@@ -167,6 +177,8 @@ config SOC_FLASH_NRF5_RADIO_SYNC
 config SOC_FLASH_MCUX
 	bool "MCUX flash shim driver"
 	depends on FLASH && HAS_MCUX
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_DRIVER_ENABLED
 	default n
 	help
 	  Enables the MCUX flash shim driver.
@@ -175,11 +187,21 @@ config SOC_FLASH_MCUX
 	  have an impact on the overall system performance - whether
 	  this is acceptable or not will depend on the use case.
 
-config SOC_FLASH_MCUX_DEV_NAME
-	string "MCUX flash device name"
-	depends on SOC_FLASH_MCUX
-	default "MCUX_FLASH"
+config SOC_FLASH_NIOS2_QSPI
+	bool "Nios-II QSPI flash driver"
+	depends on FLASH && HAS_ALTERA_HAL
+	default n
+	select FLASH_HAS_DRIVER_ENABLED
 	help
-	  Specify the device name for the flash driver.
+	  Enables the Nios-II QSPI flash driver.
+
+config SOC_FLASH_NIOS2_QSPI_DEV_NAME
+	string "Nios-II QSPI flash device name"
+	depends on SOC_FLASH_NIOS2_QSPI
+	default "NIOS2_QSPI_FLASH"
+	help
+	  Specify the device name for the QSPI flash driver.
 
 source "drivers/flash/Kconfig.stm32"
+
+source "drivers/flash/Kconfig.sam0"

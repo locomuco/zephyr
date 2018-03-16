@@ -21,10 +21,10 @@ The STM32 Nucleo board comes with the STM32 comprehensive software HAL library t
 with various packaged software examples.
 
 .. image:: img/nucleo_f091rc_board.jpg
-     :width: 500px
-     :height: 367px
-     :align: center
-     :alt: Nucleo F091RC
+   :width: 500px
+   :height: 367px
+   :align: center
+   :alt: Nucleo F091RC
 
 More information about the board can be found at the `Nucleo F091RC website`_.
 
@@ -34,28 +34,39 @@ Nucleo F091RC provides the following hardware components:
 
 - STM32 microcontroller in QFP64 package
 - Two types of extension resources:
-    - Arduino* Uno V3 connectivity
-    - ST morpho extension pin headers for full access to all STM32 I/Os
+
+  - Arduino* Uno V3 connectivity
+  - ST morpho extension pin headers for full access to all STM32 I/Os
+
 - ARM* mbed*
 - On-board ST-LINK/V2-1 debugger/programmer with SWD connector:
-    - Selection-mode switch to use the kit as a standalone ST-LINK/V2-1
+
+  - Selection-mode switch to use the kit as a standalone ST-LINK/V2-1
+
 - Flexible board power supply:
-    - USB VBUS or external source (3.3V, 5V, 7 - 12V)
-    - Power management access point
+
+  - USB VBUS or external source (3.3V, 5V, 7 - 12V)
+  - Power management access point
+
 - Three LEDs:
-    - USB communication (LD1), user LED (LD2), power LED (LD3)
+
+  - USB communication (LD1), user LED (LD2), power LED (LD3)
+
 - Two push-buttons: USER and RESET
 - USB re-enumeration capability. Three different interfaces supported on USB:
-    - Virtual COM port
-    - Mass storage
-    - Debug port
-- Support of wide choice of Integrated Development Environments (IDEs) including:
-    - IAR
-    - ARM Keil
-    - GCC-based IDEs
 
-More information about STM32F091RC can be found here:
-       - `STM32F091 reference manual`_
+  - Virtual COM port
+  - Mass storage
+  - Debug port
+
+- Support of wide choice of Integrated Development Environments (IDEs) including:
+
+  - IAR
+  - ARM Keil
+  - GCC-based IDEs
+
+More information about STM32F091RC can be found in the
+`STM32F091 reference manual`_
 
 
 Supported Features
@@ -81,6 +92,10 @@ The Zephyr nucleo_f091rc board configuration supports the following hardware fea
 +-----------+------------+-------------------------------------+
 | IWDG      | on-chip    | independent watchdog                |
 +-----------+------------+-------------------------------------+
+| I2C       | on-chip    | i2c controller                      |
++-----------+------------+-------------------------------------+
+| SPI       | on-chip    | SPI controller                      |
++-----------+------------+-------------------------------------+
 
 Other hardware features are not yet supported in this Zephyr port.
 
@@ -98,17 +113,28 @@ capable except for analog inputs.
 Board connectors:
 -----------------
 .. image:: img/nucleo_f091rc_connectors.png
-     :width: 800px
-     :align: center
-     :height: 619px
-     :alt: Nucleo F091RC connectors
+   :width: 800px
+   :align: center
+   :height: 619px
+   :alt: Nucleo F091RC connectors
 
 Default Zephyr Peripheral Mapping:
 ----------------------------------
+
 - UART_1_TX : PB6
 - UART_1_RX : PB7
 - UART_2_TX : PA2
 - UART_2_RX : PA3
+- I2C1_SCL : PB8
+- I2C1_SDA : PB9
+- I2C2_SCL : PA11
+- I2C2_SDA : PA12
+- SPI1_SCK : PB3
+- SPI1_MISO : PB4
+- SPI1_MOSI : PB5
+- SPI2_SCK : PB13
+- SPI2_MISO : PB14
+- SPI2_MOSI : PB15
 
 For mode details please refer to `STM32 Nucleo-64 board User Manual`_.
 
@@ -158,7 +184,7 @@ References
    http://www.st.com/en/evaluation-tools/nucleo-f091rc.html
 
 .. _STM32F091 reference manual:
-   www.st.com/resource/en/reference_manual/dm00031936.pdf
+   http://www.st.com/resource/en/reference_manual/dm00031936.pdf
 
 .. _STM32 Nucleo-64 board User Manual:
    http://www.st.com/resource/en/user_manual/dm00105823.pdf

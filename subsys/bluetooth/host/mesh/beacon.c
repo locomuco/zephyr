@@ -25,7 +25,6 @@
 #include "crypto.h"
 #include "beacon.h"
 #include "foundation.h"
-#include "friend.h"
 
 #define UNPROVISIONED_INTERVAL     K_SECONDS(5)
 #define PROVISIONED_INTERVAL       K_SECONDS(10)
@@ -43,24 +42,18 @@
 
 static struct k_delayed_work beacon_timer;
 
-static struct {
-	u16_t net_idx;
-	u8_t  data[21];
-} beacon_cache[CONFIG_BT_MESH_SUBNET_COUNT];
-
 static struct bt_mesh_subnet *cache_check(u8_t data[21])
 {
-	struct bt_mesh_subnet *sub;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(beacon_cache); i++) {
-		if (memcmp(beacon_cache[i].data, data, 21)) {
+	for (i = 0; i < ARRAY_SIZE(bt_mesh.sub); i++) {
+		struct bt_mesh_subnet *sub = &bt_mesh.sub[i];
+
+		if (sub->net_idx == BT_MESH_KEY_UNUSED) {
 			continue;
 		}
 
-		sub = bt_mesh_subnet_get(beacon_cache[i].net_idx);
-		if (sub) {
-			BT_DBG("Match found in cache");
+		if (!memcmp(sub->beacon_cache, data, 21)) {
 			return sub;
 		}
 	}
@@ -68,9 +61,9 @@ static struct bt_mesh_subnet *cache_check(u8_t data[21])
 	return NULL;
 }
 
-static void cache_add(u8_t data[21], u16_t net_idx)
+static void cache_add(u8_t data[21], struct bt_mesh_subnet *sub)
 {
-	memcpy(beacon_cache[net_idx].data, data, 21);
+	memcpy(sub->beacon_cache, data, 21);
 }
 
 static void beacon_complete(int err, void *user_data)
@@ -136,7 +129,8 @@ static int secure_beacon_send(void)
 		}
 
 		time_diff = now - sub->beacon_sent;
-		if (time_diff < BEACON_THRESHOLD(sub)) {
+		if (time_diff < K_SECONDS(600) &&
+		    time_diff < BEACON_THRESHOLD(sub)) {
 			continue;
 		}
 
@@ -159,7 +153,10 @@ static int secure_beacon_send(void)
 static int unprovisioned_beacon_send(void)
 {
 #if defined(CONFIG_BT_MESH_PB_ADV)
+	const struct bt_mesh_prov *prov;
+	u8_t uri_hash[16] = { 0 };
 	struct net_buf *buf;
+	u16_t oob_info;
 
 	BT_DBG("");
 
@@ -170,14 +167,43 @@ static int unprovisioned_beacon_send(void)
 		return -ENOBUFS;
 	}
 
-	net_buf_add_u8(buf, BEACON_TYPE_UNPROVISIONED);
-	net_buf_add_mem(buf, bt_mesh_prov_get_uuid(), 16);
+	prov = bt_mesh_prov_get();
 
-	/* OOB Info (2 bytes) + URI Hash (4 bytes) */
-	memset(net_buf_add(buf, 2 + 4), 0, 2 + 4);
+	net_buf_add_u8(buf, BEACON_TYPE_UNPROVISIONED);
+	net_buf_add_mem(buf, prov->uuid, 16);
+
+	if (prov->uri && bt_mesh_s1(prov->uri, uri_hash) == 0) {
+		oob_info = prov->oob_info | BT_MESH_PROV_OOB_URI;
+	} else {
+		oob_info = prov->oob_info;
+	}
+
+	net_buf_add_be16(buf, oob_info);
+	net_buf_add_mem(buf, uri_hash, 4);
 
 	bt_mesh_adv_send(buf, NULL, NULL);
 	net_buf_unref(buf);
+
+	if (prov->uri) {
+		size_t len;
+
+		buf = bt_mesh_adv_create(BT_MESH_ADV_URI, UNPROV_XMIT_COUNT,
+					 UNPROV_XMIT_INT, K_NO_WAIT);
+		if (!buf) {
+			BT_ERR("Unable to allocate URI buffer");
+			return -ENOBUFS;
+		}
+
+		len = strlen(prov->uri);
+		if (net_buf_tailroom(buf) < len) {
+			BT_WARN("Too long URI to fit advertising data");
+		} else {
+			net_buf_add_mem(buf, prov->uri, len);
+			bt_mesh_adv_send(buf, NULL, NULL);
+		}
+
+		net_buf_unref(buf);
+	}
 
 #endif /* CONFIG_BT_MESH_PB_ADV */
 	return 0;
@@ -278,7 +304,7 @@ static void secure_beacon_recv(struct net_buf_simple *buf)
 		return;
 	}
 
-	cache_add(data, sub->net_idx);
+	cache_add(data, sub);
 
 	/* If we have NetKey0 accept initiation only from it */
 	if (bt_mesh_subnet_get(BT_MESH_KEY_PRIMARY) &&
@@ -295,19 +321,19 @@ static void secure_beacon_recv(struct net_buf_simple *buf)
 		bt_mesh_beacon_ivu_initiator(false);
 	}
 
-	iv_change = bt_mesh_iv_update(iv_index, BT_MESH_IV_UPDATE(flags));
+	iv_change = bt_mesh_net_iv_update(iv_index, BT_MESH_IV_UPDATE(flags));
 
 	kr_change = bt_mesh_kr_update(sub, BT_MESH_KEY_REFRESH(flags), new_key);
 	if (kr_change) {
 		bt_mesh_net_beacon_update(sub);
 	}
 
-	if (IS_ENABLED(CONFIG_BT_MESH_FRIEND) && (iv_change || kr_change)) {
-		if (iv_change) {
-			bt_mesh_friend_sec_update(BT_MESH_KEY_ANY);
-		} else {
-			bt_mesh_friend_sec_update(sub->net_idx);
-		}
+	if (iv_change) {
+		/* Update all subnets */
+		bt_mesh_net_sec_update(NULL);
+	} else if (kr_change) {
+		/* Key Refresh without IV Update only impacts one subnet */
+		bt_mesh_net_sec_update(sub);
 	}
 
 update_stats:

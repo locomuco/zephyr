@@ -1,24 +1,24 @@
 ---
-title: ARM Cortex M4 NVIC Interrupt Controller
+title: ARMv7-M NVIC Interrupt Controller
 version: 0.1
 
 description: >
-    This binding describes the ARM Cortex M4 NVIC IRQ controller
+    This binding describes the ARMv7-M Nested Vectored Interrupt Controller.
 
 properties:
-  - compatible:
+    compatible:
       category: required
       type: string
       description: compatible strings
       constraint: "arm,v7m-nvic"
 
-  - reg:
+    reg:
       category: required
       type: int
       description: mmio register space
       generation: define
 
-  - arm,num-irq-priority-bits:
+    arm,num-irq-priority-bits:
       category: required
       type: int
       description: number of bits of IRQ priorities
