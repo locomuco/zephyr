@@ -12,6 +12,7 @@
 #include <string.h>
 #include "spi_flash_w25qxxdv_defs.h"
 #include "spi_flash_w25qxxdv.h"
+#include "flash_priv.h"
 
 #if CONFIG_FLASH_RDID_VERIFY
 static inline int spi_flash_wb_id(struct device *dev)

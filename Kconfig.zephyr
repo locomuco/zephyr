@@ -10,6 +10,14 @@ config KERNELVERSION
 	string
 	option env="KERNELVERSION"
 
+config ENV_VAR_SYM_BOARD_DIR
+	string
+	option env="ENV_VAR_BOARD_DIR"
+
+config ENV_VAR_SYM_ARCH
+	string
+	option env="ENV_VAR_ARCH"
+
 source "arch/Kconfig"
 
 source "kernel/Kconfig"
@@ -17,8 +25,6 @@ source "kernel/Kconfig"
 source "dts/Kconfig"
 
 source "drivers/Kconfig"
-
-source "net/Kconfig"
 
 source "misc/Kconfig"
 
@@ -37,5 +43,5 @@ source "tests/Kconfig"
 # Board defaults should be parsed after SoC defaults
 # because board usually overrides SoC values.
 #
-source "arch/*/soc/*/Kconfig.defconfig"
-source "boards/*/*/Kconfig.defconfig"
+source "arch/$ENV_VAR_SYM_ARCH/soc/*/Kconfig.defconfig"
+source "$ENV_VAR_SYM_BOARD_DIR/Kconfig.defconfig"

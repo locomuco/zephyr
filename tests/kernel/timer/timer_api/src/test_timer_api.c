@@ -10,6 +10,9 @@
 #define DURATION 100
 #define PERIOD 50
 #define EXPIRE_TIMES 4
+#define WITHIN_ERROR(var, target, epsilon)       \
+		(((var) >= (target)) && ((var) <= (target) + (epsilon)))
+
 static void duration_expire(struct k_timer *timer);
 static void duration_stop(struct k_timer *timer);
 
@@ -74,19 +77,7 @@ static void status_expire(struct k_timer *timer)
 
 static void busy_wait_ms(s32_t ms)
 {
-#ifdef CONFIG_TICKLESS_KERNEL
-	k_enable_sys_clock_always_on();
-#endif
-	s32_t deadline = k_uptime_get() + ms;
-
-	volatile s32_t now = k_uptime_get();
-
-	while (now < deadline) {
-		now = k_uptime_get();
-	}
-#ifdef CONFIG_TICKLESS_KERNEL
-	k_disable_sys_clock_always_on();
-#endif
+	k_busy_wait(ms*1000);
 }
 
 static void status_stop(struct k_timer *timer)
@@ -142,6 +133,37 @@ void test_timer_expirefn_null(void)
 	TIMER_ASSERT(tdata.expire_cnt == 0, &timer);
 	/** TESTPOINT: stop handler is invoked */
 	TIMER_ASSERT(tdata.stop_cnt == 1, &timer);
+
+	/* cleanup environment */
+	k_timer_stop(&timer);
+}
+
+void test_timer_periodicity(void)
+{
+	s64_t delta;
+
+	init_timer_data();
+	/** TESTPOINT: set duration 0 */
+	k_timer_init(&timer, NULL, NULL);
+	k_timer_start(&timer, 0, PERIOD);
+
+	/* clear the expiration that would have happenned due to
+	 * whatever duration that was set.
+	 */
+	k_timer_status_sync(&timer);
+	tdata.timestamp = k_uptime_get();
+
+	for (int i = 0; i < EXPIRE_TIMES; i++) {
+		/** TESTPOINT: expired times returned by status sync */
+		TIMER_ASSERT(k_timer_status_sync(&timer) == 1, &timer);
+
+		delta = k_uptime_delta(&tdata.timestamp);
+
+		/** TESTPOINT: check if timer fired within 1ms of the
+		 *  expected period (firing time)
+		 */
+		TIMER_ASSERT(WITHIN_ERROR(delta, PERIOD, 1), &timer);
+	}
 
 	/* cleanup environment */
 	k_timer_stop(&timer);
