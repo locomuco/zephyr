@@ -1,0 +1,7 @@
+identifier: tado_ib01
+name: TADO-IB01
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gccarmemb
