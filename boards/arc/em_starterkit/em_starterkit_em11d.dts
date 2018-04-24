@@ -1,0 +1,24 @@
+/dts-v1/;
+
+#include <em11d.dtsi>
+
+/ {
+	model = "em_starterkit-em11d";
+	compatible = "snps,em_starterkit-em11d", "snps,em_starterkit";
+
+	aliases {
+		uart-0 = &uart0;
+		uart-1 = &uart1;
+		uart-2 = &uart2;
+	};
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,console = &uart1;
+	};
+};
+
+&uart1 {
+	status = "ok";
+	current-speed = <115200>;
+};

@@ -779,13 +779,15 @@ int net_ipv6_finalize_raw(struct net_pkt *pkt, u8_t next_header)
 	NET_IPV6_HDR(pkt)->len[1] = total_len & 0xff;
 
 #if defined(CONFIG_NET_UDP)
-	if (next_header == IPPROTO_UDP) {
+	if (next_header == IPPROTO_UDP &&
+	    net_if_need_calc_tx_checksum(net_pkt_iface(pkt))) {
 		net_udp_set_chksum(pkt, pkt->frags);
 	} else
 #endif
 
 #if defined(CONFIG_NET_TCP)
-	if (next_header == IPPROTO_TCP) {
+	if (next_header == IPPROTO_TCP &&
+	    net_if_need_calc_tx_checksum(net_pkt_iface(pkt))) {
 		net_tcp_set_chksum(pkt, pkt->frags);
 	} else
 #endif
@@ -1037,9 +1039,10 @@ ignore_frag_error:
 #endif /* CONFIG_NET_IPV6_FRAGMENT */
 
 	/* Workaround Linux bug, see:
-	 * https://jira.zephyrproject.org/browse/ZEP-1656
+	 * https://github.com/zephyrproject-rtos/zephyr/issues/3111
 	 */
-	if (atomic_test_bit(net_pkt_iface(pkt)->flags, NET_IF_POINTOPOINT)) {
+	if (atomic_test_bit(net_pkt_iface(pkt)->if_dev->flags,
+			    NET_IF_POINTOPOINT)) {
 		/* Update RPL header */
 		if (net_rpl_update_header(pkt, &NET_IPV6_HDR(pkt)->dst) < 0) {
 			net_pkt_unref(pkt);
@@ -1206,15 +1209,15 @@ struct net_nbr *net_ipv6_get_nbr(struct net_if *iface, u8_t idx)
 
 static inline u8_t get_llao_len(struct net_if *iface)
 {
-	if (iface->link_addr.len == 6) {
+	if (net_if_get_link_addr(iface)->len == 6) {
 		return 8;
-	} else if (iface->link_addr.len == 8) {
+	} else if (net_if_get_link_addr(iface)->len == 8) {
 		return 16;
 	}
 
 	/* What else could it be? */
 	NET_ASSERT_INFO(0, "Invalid link address length %d",
-			iface->link_addr.len);
+			net_if_get_link_addr(iface)->len);
 
 	return 0;
 }
@@ -1334,7 +1337,7 @@ int net_ipv6_send_na(struct net_if *iface, const struct in6_addr *src,
 	net_ipaddr_copy(&NET_IPV6_HDR(pkt)->dst, dst);
 	net_ipaddr_copy(&na_hdr->tgt, tgt);
 
-	set_llao(&net_pkt_iface(pkt)->link_addr,
+	set_llao(net_if_get_link_addr(net_pkt_iface(pkt)),
 		 (u8_t *)net_pkt_icmp_data(pkt) + sizeof(struct net_icmp_hdr) +
 					      sizeof(struct net_icmpv6_na_hdr),
 		 llao_len, NET_ICMPV6_ND_OPT_TLLAO);
@@ -1356,13 +1359,13 @@ int net_ipv6_send_na(struct net_if *iface, const struct in6_addr *src,
 		goto drop;
 	}
 
-	net_stats_update_ipv6_nd_sent();
+	net_stats_update_ipv6_nd_sent(net_pkt_iface(pkt));
 
 	return 0;
 
 drop:
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 	net_pkt_unref(pkt);
-	net_stats_update_ipv6_nd_drop();
 
 	return -EINVAL;
 }
@@ -1409,7 +1412,7 @@ static enum net_verdict handle_ns_input(struct net_pkt *pkt)
 			  &NET_IPV6_HDR(pkt)->dst,
 			  &ns_hdr->tgt);
 
-	net_stats_update_ipv6_nd_recv();
+	net_stats_update_ipv6_nd_recv(net_pkt_iface(pkt));
 
 	if ((total_len < (sizeof(struct net_ipv6_hdr) +
 			  sizeof(struct net_icmp_hdr) +
@@ -1638,7 +1641,7 @@ send_na:
 	return NET_DROP;
 
 drop:
-	net_stats_update_ipv6_nd_drop();
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }
@@ -1747,7 +1750,8 @@ static void nd_reachable_timeout(struct k_work *work)
 	}
 }
 
-void net_ipv6_nbr_set_reachable_timer(struct net_if *iface, struct net_nbr *nbr)
+void net_ipv6_nbr_set_reachable_timer(struct net_if *iface,
+				      struct net_nbr *nbr)
 {
 	u32_t time;
 
@@ -1790,7 +1794,7 @@ static inline bool handle_na_neighbor(struct net_pkt *pkt,
 	}
 
 	if (tllao_offset) {
-		lladdr.len = net_pkt_iface(pkt)->link_addr.len;
+		lladdr.len = net_if_get_link_addr(net_pkt_iface(pkt))->len;
 
 		frag = net_frag_read(pkt->frags, tllao_offset,
 				     &pos, lladdr.len, lladdr.addr);
@@ -1959,7 +1963,7 @@ static enum net_verdict handle_na_input(struct net_pkt *pkt)
 			  &NET_IPV6_HDR(pkt)->dst,
 			  &na_hdr->tgt);
 
-	net_stats_update_ipv6_nd_recv();
+	net_stats_update_ipv6_nd_recv(net_pkt_iface(pkt));
 
 	if ((total_len < (sizeof(struct net_ipv6_hdr) +
 			  sizeof(struct net_icmp_hdr) +
@@ -2038,12 +2042,12 @@ static enum net_verdict handle_na_input(struct net_pkt *pkt)
 
 	net_pkt_unref(pkt);
 
-	net_stats_update_ipv6_nd_sent();
+	net_stats_update_ipv6_nd_sent(net_pkt_iface(pkt));
 
 	return NET_OK;
 
 drop:
-	net_stats_update_ipv6_nd_drop();
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }
@@ -2131,7 +2135,7 @@ int net_ipv6_send_ns(struct net_if *iface,
 
 		net_buf_add(frag, llao_len);
 
-		set_llao(&net_pkt_iface(pkt)->link_addr,
+		set_llao(net_if_get_link_addr(net_pkt_iface(pkt)),
 			 (u8_t *)net_pkt_icmp_data(pkt) +
 					sizeof(struct net_icmp_hdr) +
 					sizeof(struct net_icmpv6_ns_hdr),
@@ -2149,6 +2153,10 @@ int net_ipv6_send_ns(struct net_if *iface,
 		if (!nbr) {
 			NET_DBG("Could not create new neighbor %s",
 				net_sprint_ipv6_addr(&ns_hdr->tgt));
+			if (pending) {
+				net_pkt_unref(pending);
+			}
+
 			goto drop;
 		}
 	}
@@ -2185,13 +2193,13 @@ int net_ipv6_send_ns(struct net_if *iface,
 		goto drop;
 	}
 
-	net_stats_update_ipv6_nd_sent();
+	net_stats_update_ipv6_nd_sent(net_pkt_iface(pkt));
 
 	return 0;
 
 drop:
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 	net_pkt_unref(pkt);
-	net_stats_update_ipv6_nd_drop();
 
 	return -EINVAL;
 }
@@ -2244,7 +2252,7 @@ int net_ipv6_send_rs(struct net_if *iface)
 	if (!unspec_src) {
 		net_buf_add(frag, llao_len);
 
-		set_llao(&net_pkt_iface(pkt)->link_addr,
+		set_llao(net_if_get_link_addr(net_pkt_iface(pkt)),
 			 (u8_t *)net_pkt_icmp_data(pkt) +
 					 sizeof(struct net_icmp_hdr) +
 					 sizeof(struct net_icmpv6_rs_hdr),
@@ -2261,13 +2269,13 @@ int net_ipv6_send_rs(struct net_if *iface)
 		goto drop;
 	}
 
-	net_stats_update_ipv6_nd_sent();
+	net_stats_update_ipv6_nd_sent(net_pkt_iface(pkt));
 
 	return 0;
 
 drop:
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 	net_pkt_unref(pkt);
-	net_stats_update_ipv6_nd_drop();
 
 	return -EINVAL;
 }
@@ -2573,7 +2581,7 @@ static enum net_verdict handle_ra_input(struct net_pkt *pkt)
 		      &NET_IPV6_HDR(pkt)->src,
 		      &NET_IPV6_HDR(pkt)->dst);
 
-	net_stats_update_ipv6_nd_recv();
+	net_stats_update_ipv6_nd_recv(net_pkt_iface(pkt));
 
 	if ((total_len < (sizeof(struct net_ipv6_hdr) +
 			  sizeof(struct net_icmp_hdr) +
@@ -2624,7 +2632,8 @@ static enum net_verdict handle_ra_input(struct net_pkt *pkt)
 		net_if_ipv6_set_base_reachable_time(net_pkt_iface(pkt),
 						    reachable_time);
 
-		net_if_ipv6_set_reachable_time(net_pkt_iface(pkt));
+		net_if_ipv6_set_reachable_time(
+			net_pkt_iface(pkt)->config.ip.ipv6);
 	}
 
 	if (retrans_timer) {
@@ -2753,14 +2762,14 @@ static enum net_verdict handle_ra_input(struct net_pkt *pkt)
 	}
 
 	/* Cancel the RS timer on iface */
-	k_delayed_work_cancel(&net_pkt_iface(pkt)->ipv6.rs_timer);
+	k_delayed_work_cancel(&net_pkt_iface(pkt)->config.ip.ipv6->rs_timer);
 
 	net_pkt_unref(pkt);
 
 	return NET_OK;
 
 drop:
-	net_stats_update_ipv6_nd_drop();
+	net_stats_update_ipv6_nd_drop(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }
@@ -2855,15 +2864,16 @@ static int send_mldv2_raw(struct net_if *iface, struct net_buf *frags)
 		goto drop;
 	}
 
-	net_stats_update_icmp_sent();
-	net_stats_update_ipv6_mld_sent();
+	net_stats_update_icmp_sent(net_pkt_iface(pkt));
+	net_stats_update_ipv6_mld_sent(net_pkt_iface(pkt));
 
 	return 0;
 
 drop:
+	net_stats_update_icmp_drop(net_pkt_iface(pkt));
+	net_stats_update_ipv6_mld_drop(net_pkt_iface(pkt));
+
 	net_pkt_unref(pkt);
-	net_stats_update_icmp_drop();
-	net_stats_update_ipv6_mld_drop();
 
 	return ret;
 }
@@ -2943,8 +2953,11 @@ int net_ipv6_mld_leave(struct net_if *iface, const struct in6_addr *addr)
 
 static void send_mld_report(struct net_if *iface)
 {
+	struct net_if_ipv6 *ipv6 = iface->config.ip.ipv6;
 	struct net_pkt *pkt;
 	int i, count = 0;
+
+	NET_ASSERT(ipv6);
 
 	pkt = net_pkt_get_reserve_tx(net_if_get_ll_reserve(iface, NULL),
 				     K_FOREVER);
@@ -2952,12 +2965,11 @@ static void send_mld_report(struct net_if *iface)
 	net_pkt_append_u8(pkt, 0); /* This will be the record count */
 
 	for (i = 0; i < NET_IF_MAX_IPV6_MADDR; i++) {
-		if (!iface->ipv6.mcast[i].is_used ||
-		    !iface->ipv6.mcast[i].is_joined) {
+		if (!ipv6->mcast[i].is_used || !ipv6->mcast[i].is_joined) {
 			continue;
 		}
 
-		pkt = create_mldv2(pkt, &iface->ipv6.mcast[i].address.in6_addr,
+		pkt = create_mldv2(pkt, &ipv6->mcast[i].address.in6_addr,
 				   NET_IPV6_MLDv2_MODE_IS_EXCLUDE, 0);
 		count++;
 	}
@@ -2988,7 +3000,7 @@ static enum net_verdict handle_mld_query(struct net_pkt *pkt)
 		      &NET_IPV6_HDR(pkt)->src,
 		      &NET_IPV6_HDR(pkt)->dst);
 
-	net_stats_update_ipv6_mld_recv();
+	net_stats_update_ipv6_mld_recv(net_pkt_iface(pkt));
 
 	/* offset tells now where the ICMPv6 header is starting */
 	frag = net_frag_get_pos(pkt,
@@ -3033,7 +3045,7 @@ static enum net_verdict handle_mld_query(struct net_pkt *pkt)
 	send_mld_report(net_pkt_iface(pkt));
 
 drop:
-	net_stats_update_ipv6_mld_drop();
+	net_stats_update_ipv6_mld_drop(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }
@@ -3175,6 +3187,10 @@ static void reassembly_info(char *str, struct net_ipv6_reassembly *reass)
 	snprintk(out, sizeof(out), "%s", net_sprint_ipv6_addr(&reass->dst));
 
 	for (i = 0, len = 0; i < NET_IPV6_FRAGMENTS_MAX_PKT; i++) {
+		if (!reass->pkt[i]) {
+			continue;
+		}
+
 		len += net_pkt_get_len(reass->pkt[i]);
 	}
 
@@ -4147,7 +4163,7 @@ enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt)
 
 	if (real_len != pkt_len) {
 		NET_DBG("IPv6 packet size %d pkt len %d", pkt_len, real_len);
-		net_stats_update_ipv6_drop();
+		net_stats_update_ipv6_drop(net_pkt_iface(pkt));
 		goto drop;
 	}
 
@@ -4164,7 +4180,7 @@ enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt)
 
 	if (net_is_ipv6_addr_mcast(&hdr->src)) {
 		NET_DBG("Dropping src multicast packet");
-		net_stats_update_ipv6_drop();
+		net_stats_update_ipv6_drop(net_pkt_iface(pkt));
 		goto drop;
 	}
 
@@ -4183,7 +4199,7 @@ enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt)
 		NET_DBG("IPv6 packet in pkt %p not for me", pkt);
 #endif /* CONFIG_NET_ROUTE */
 
-		net_stats_update_ipv6_drop();
+		net_stats_update_ipv6_drop(net_pkt_iface(pkt));
 		goto drop;
 	}
 
@@ -4198,7 +4214,7 @@ enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt)
 					      &hdr->dst)) {
 		no_route_info(pkt, &hdr->src, &hdr->dst);
 
-		net_stats_update_ipv6_drop();
+		net_stats_update_ipv6_drop(net_pkt_iface(pkt));
 		goto drop;
 	}
 
@@ -4238,7 +4254,7 @@ enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt)
 
 		frag = net_frag_read_u8(frag, offset, &offset, &next_hdr);
 		frag = net_frag_read_u8(frag, offset, &offset, &length);
-		if (!frag && offset == 0xffff) {
+		if (!frag) {
 			goto drop;
 		}
 
@@ -4338,7 +4354,7 @@ bad_hdr:
 			      offset - 1);
 
 	NET_DBG("Unknown next header type");
-	net_stats_update_ip_errors_protoerr();
+	net_stats_update_ip_errors_protoerr(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }

@@ -11,6 +11,8 @@ if(CONFIG_HAS_NRFX)
   zephyr_include_directories(nrfx/mdk)
   zephyr_include_directories(.)
 
+  zephyr_sources_ifdef(CONFIG_HAS_NRFX   nrfx_glue.c)
+
   zephyr_sources_ifdef(CONFIG_NRFX_PRS   nrfx/drivers/prs/nrfx_prs.c)
 
   zephyr_sources_ifdef(CONFIG_NRFX_ADC   nrfx/drivers/src/nrfx_adc.c)
@@ -19,6 +21,7 @@ if(CONFIG_HAS_NRFX)
   zephyr_sources_ifdef(CONFIG_NRFX_SAADC nrfx/drivers/src/nrfx_saadc.c)
   zephyr_sources_ifdef(CONFIG_NRFX_SPI   nrfx/drivers/src/nrfx_spi.c)
   zephyr_sources_ifdef(CONFIG_NRFX_SPIM  nrfx/drivers/src/nrfx_spim.c)
+  zephyr_sources_ifdef(CONFIG_NRFX_SPIS  nrfx/drivers/src/nrfx_spis.c)
   zephyr_sources_ifdef(CONFIG_NRFX_TWI   nrfx/drivers/src/nrfx_twi.c)
   zephyr_sources_ifdef(CONFIG_NRFX_TWIM  nrfx/drivers/src/nrfx_twim.c)
   zephyr_sources_ifdef(CONFIG_NRFX_UART  nrfx/drivers/src/nrfx_uart.c)

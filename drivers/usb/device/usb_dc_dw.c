@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <misc/byteorder.h>
 #include <usb/usb_dc.h>
+#include <usb/usb_device.h>
 #include "usb_dw_registers.h"
 #ifdef CONFIG_QMSI
 #include "clk.h"
@@ -421,6 +422,12 @@ static int usb_dw_tx(u8_t ep, const u8_t *const data,
 		irq_unlock(key);
 		return -EAGAIN;
 	}
+
+	/* For now tx-fifo sizes are not configured (cf usb_dw_set_fifo). Here
+	 * we force available fifo size to be a multiple of ep mps in order to
+	 * prevent splitting data incorrectly.
+	 */
+	avail_space -= avail_space % ep_mps;
 
 	if (data_len > avail_space) {
 		data_len = avail_space;
@@ -933,8 +940,9 @@ int usb_dc_ep_enable(const u8_t ep)
 		usb_dw_ctrl.in_ep_ctrl[ep_idx].ep_ena = 1;
 	}
 
-	if (USB_DW_EP_ADDR2DIR(ep) == USB_EP_DIR_OUT) {
-		/* Prepare EP for  rx */
+	if (USB_DW_EP_ADDR2DIR(ep) == USB_EP_DIR_OUT &&
+		usb_dw_ctrl.out_ep_ctrl[ep_idx].cb != usb_transfer_ep_callback) {
+		/* Start reading now, except for transfer managed eps */
 		usb_dw_prep_rx(ep, 0);
 	}
 
@@ -1174,5 +1182,20 @@ int usb_dc_set_status_callback(const usb_dc_status_callback cb)
 {
 	usb_dw_ctrl.status_cb = cb;
 
+	return 0;
+}
+
+int usb_dc_ep_mps(const u8_t ep)
+{
+	enum usb_dw_out_ep_idx ep_idx = USB_DW_EP_ADDR2IDX(ep);
+
+	switch (USB_DW_EP_ADDR2DIR(ep)) {
+	case USB_EP_DIR_OUT:
+		return usb_dw_ctrl.out_ep_ctrl[ep_idx].mps;
+	case USB_EP_DIR_IN:
+		return usb_dw_ctrl.in_ep_ctrl[ep_idx].mps;
+	}
+
+	/* Should not happen */
 	return 0;
 }
