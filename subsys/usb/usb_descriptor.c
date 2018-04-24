@@ -113,6 +113,24 @@ struct dev_common_descriptor {
 		struct usb_ep_descriptor if0_int_ep;
 	} __packed hid_cfg;
 #endif
+#ifdef CONFIG_USB_DEVICE_NETWORK_EEM
+	struct usb_cdc_eem_config {
+#ifdef CONFIG_USB_COMPOSITE_DEVICE
+		struct usb_association_descriptor iad;
+#endif
+		struct usb_if_descriptor if0;
+		struct usb_ep_descriptor if0_in_ep;
+		struct usb_ep_descriptor if0_out_ep;
+	} __packed cdc_eem_cfg;
+#endif
+#ifdef CONFIG_USB_DEVICE_BLUETOOTH
+	struct usb_bluetooth_config {
+		struct usb_if_descriptor if0;
+		struct usb_ep_descriptor if0_int_ep;
+		struct usb_ep_descriptor if0_out_ep;
+		struct usb_ep_descriptor if0_in_ep;
+	} __packed bluetooth_cfg;
+#endif
 	struct usb_string_desription {
 		struct usb_string_descriptor lang_descr;
 		struct usb_mfr_descriptor {
@@ -171,10 +189,11 @@ static struct dev_common_descriptor common_desc = {
 	.cfg_descr = {
 		.bLength = sizeof(struct usb_cfg_descriptor),
 		.bDescriptorType = USB_CONFIGURATION_DESC,
-		.wTotalLength = sizeof(struct dev_common_descriptor)
-			      - sizeof(struct usb_device_descriptor)
-			      - sizeof(struct usb_string_desription)
-			      - sizeof(struct usb_desc_header),
+		.wTotalLength = sys_cpu_to_le16(
+			sizeof(struct dev_common_descriptor)
+			- sizeof(struct usb_device_descriptor)
+			- sizeof(struct usb_string_desription)
+			- sizeof(struct usb_desc_header)),
 		.bNumInterfaces = NUMOF_IFACES,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
@@ -411,7 +430,7 @@ static struct dev_common_descriptor common_desc = {
 			.bFirstInterface = FIRST_IFACE_CDC_ECM,
 			.bInterfaceCount = 0x02,
 			.bFunctionClass = COMMUNICATION_DEVICE_CLASS,
-			.bFunctionSubClass = CDC_ECM_SUBCLASS,
+			.bFunctionSubClass = ECM_SUBCLASS,
 			.bFunctionProtocol = 0,
 			.iFunction = 0,
 		},
@@ -426,7 +445,7 @@ static struct dev_common_descriptor common_desc = {
 			.bAlternateSetting = 0,
 			.bNumEndpoints = 1,
 			.bInterfaceClass = COMMUNICATION_DEVICE_CLASS,
-			.bInterfaceSubClass = CDC_ECM_SUBCLASS,
+			.bInterfaceSubClass = ECM_SUBCLASS,
 			.bInterfaceProtocol = 0,
 			.iInterface = 0,
 		},
@@ -491,7 +510,7 @@ static struct dev_common_descriptor common_desc = {
 			.bAlternateSetting = 1,
 			.bNumEndpoints = 2,
 			.bInterfaceClass = COMMUNICATION_DEVICE_CLASS_DATA,
-			.bInterfaceSubClass = CDC_ECM_SUBCLASS,
+			.bInterfaceSubClass = ECM_SUBCLASS,
 			.bInterfaceProtocol = 0,
 			.iInterface = 0,
 		},
@@ -598,6 +617,113 @@ static struct dev_common_descriptor common_desc = {
 		},
 	},
 #endif /* CONFIG_USB_DEVICE_HID */
+
+#ifdef CONFIG_USB_DEVICE_NETWORK_EEM
+	.cdc_eem_cfg = {
+#ifdef CONFIG_USB_COMPOSITE_DEVICE
+		.iad = {
+			.bLength = sizeof(struct usb_association_descriptor),
+			.bDescriptorType = USB_ASSOCIATION_DESC,
+			.bFirstInterface = FIRST_IFACE_CDC_EEM,
+			.bInterfaceCount = 0x01,
+			.bFunctionClass = COMMUNICATION_DEVICE_CLASS,
+			.bFunctionSubClass = EEM_SUBCLASS,
+			.bFunctionProtocol = 0,
+			.iFunction = 0,
+		},
+#endif
+
+		/* Interface descriptor 0 */
+		/* CDC Communication interface */
+		.if0 = {
+			.bLength = sizeof(struct usb_if_descriptor),
+			.bDescriptorType = USB_INTERFACE_DESC,
+			.bInterfaceNumber = FIRST_IFACE_CDC_EEM,
+			.bAlternateSetting = 0,
+			.bNumEndpoints = 2,
+			.bInterfaceClass = COMMUNICATION_DEVICE_CLASS,
+			.bInterfaceSubClass = EEM_SUBCLASS,
+			.bInterfaceProtocol = EEM_PROTOCOL,
+			.iInterface = 0,
+		},
+
+		/* Data Endpoint IN */
+		.if0_in_ep = {
+			.bLength = sizeof(struct usb_ep_descriptor),
+			.bDescriptorType = USB_ENDPOINT_DESC,
+			.bEndpointAddress = CONFIG_CDC_EEM_IN_EP_ADDR,
+			.bmAttributes = USB_DC_EP_BULK,
+			.wMaxPacketSize =
+				sys_cpu_to_le16(
+				CONFIG_CDC_EEM_BULK_EP_MPS),
+			.bInterval = 0x00,
+		},
+
+		/* Data Endpoint OUT */
+		.if0_out_ep = {
+			.bLength = sizeof(struct usb_ep_descriptor),
+			.bDescriptorType = USB_ENDPOINT_DESC,
+			.bEndpointAddress = CONFIG_CDC_EEM_OUT_EP_ADDR,
+			.bmAttributes = USB_DC_EP_BULK,
+			.wMaxPacketSize =
+				sys_cpu_to_le16(
+				CONFIG_CDC_EEM_BULK_EP_MPS),
+			.bInterval = 0x00,
+		},
+	},
+#endif /* CONFIG_USB_DEVICE_NETWORK_EEM */
+#ifdef CONFIG_USB_DEVICE_BLUETOOTH
+	.bluetooth_cfg = {
+		/* Interface descriptor 0 */
+		.if0 = {
+			.bLength = sizeof(struct usb_if_descriptor),
+			.bDescriptorType = USB_INTERFACE_DESC,
+			.bInterfaceNumber = FIRST_IFACE_BLUETOOTH,
+			.bAlternateSetting = 0,
+			.bNumEndpoints = 3,
+			.bInterfaceClass = WIRELESS_DEVICE_CLASS,
+			.bInterfaceSubClass = RF_SUBCLASS,
+			.bInterfaceProtocol = BLUETOOTH_PROTOCOL,
+			.iInterface = 0,
+		},
+
+		/* Interrupt Endpoint */
+		.if0_int_ep = {
+			.bLength = sizeof(struct usb_ep_descriptor),
+			.bDescriptorType = USB_ENDPOINT_DESC,
+			.bEndpointAddress = CONFIG_BLUETOOTH_INT_EP_ADDR,
+			.bmAttributes = USB_DC_EP_INTERRUPT,
+			.wMaxPacketSize =
+				sys_cpu_to_le16(
+				CONFIG_BLUETOOTH_INT_EP_MPS),
+			.bInterval = 0x01,
+		},
+
+		/* Data Endpoint OUT */
+		.if0_out_ep = {
+			.bLength = sizeof(struct usb_ep_descriptor),
+			.bDescriptorType = USB_ENDPOINT_DESC,
+			.bEndpointAddress = CONFIG_BLUETOOTH_OUT_EP_ADDR,
+			.bmAttributes = USB_DC_EP_BULK,
+			.wMaxPacketSize =
+				sys_cpu_to_le16(
+				CONFIG_BLUETOOTH_BULK_EP_MPS),
+			.bInterval = 0x01,
+		},
+
+		/* Data Endpoint IN */
+		.if0_in_ep = {
+			.bLength = sizeof(struct usb_ep_descriptor),
+			.bDescriptorType = USB_ENDPOINT_DESC,
+			.bEndpointAddress = CONFIG_BLUETOOTH_IN_EP_ADDR,
+			.bmAttributes = USB_DC_EP_BULK,
+			.wMaxPacketSize =
+				sys_cpu_to_le16(
+				CONFIG_BLUETOOTH_BULK_EP_MPS),
+			.bInterval = 0x01,
+		},
+	},
+#endif /* CONFIG_USB_DEVICE_BLUETOOTH */
 	.string_descr = {
 		.lang_descr = {
 			.bLength = sizeof(struct usb_string_descriptor),
@@ -649,7 +775,8 @@ void ascii7_to_utf16le(int idx_max, int asci_idx_max, u8_t *buf)
 			    buf[asci_idx_max],
 			    asci_idx_max, i);
 		__ASSERT(buf[asci_idx_max] > 0x1F && buf[asci_idx_max] < 0x7F,
-			 "Only printable ascii-7 characters are allowed in USB string descriptors");
+			 "Only printable ascii-7 characters are allowed in USB "
+			 "string descriptors");
 		buf[i] = 0;
 		buf[i - 1] = buf[asci_idx_max--];
 	}
@@ -658,17 +785,17 @@ void ascii7_to_utf16le(int idx_max, int asci_idx_max, u8_t *buf)
 u8_t *usb_get_device_descriptor(void)
 {
 	ascii7_to_utf16le(MFR_UC_IDX_MAX, MFR_STRING_IDX_MAX,
-			  (u8_t *)common_desc.string_descr.utf16le_mfr.bString);
+		(u8_t *)common_desc.string_descr.utf16le_mfr.bString);
 
 	ascii7_to_utf16le(PRODUCT_UC_IDX_MAX, PRODUCT_STRING_IDX_MAX,
-			  (u8_t *)common_desc.string_descr.utf16le_product.bString);
+		(u8_t *)common_desc.string_descr.utf16le_product.bString);
 
 	ascii7_to_utf16le(SN_UC_IDX_MAX, SN_STRING_IDX_MAX,
-			  (u8_t *)common_desc.string_descr.utf16le_sn.bString);
+		(u8_t *)common_desc.string_descr.utf16le_sn.bString);
 
 #ifdef CONFIG_USB_DEVICE_NETWORK_ECM
 	ascii7_to_utf16le(ECM_MAC_UC_IDX_MAX, ECM_STRING_IDX_MAX,
-			  (u8_t *)common_desc.string_descr.utf16le_mac.bString);
+		(u8_t *)common_desc.string_descr.utf16le_mac.bString);
 #endif
 
 	return (u8_t *) &common_desc;

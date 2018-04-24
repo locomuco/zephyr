@@ -10,8 +10,8 @@
 	compatible = "intel,quark-d2000-crb", "intel,quark-d2000";
 
 	aliases {
-		uart_0 = &uart0;
-		uart_1 = &uart1;
+		uart-0 = &uart0;
+		uart-1 = &uart1;
 	};
 
 	chosen {
@@ -29,4 +29,9 @@
 &uart1 {
 	status = "ok";
 	current-speed = <115200>;
+};
+
+&i2c0 {
+	status = "ok";
+	clock-frequency = <I2C_BITRATE_FAST>;
 };

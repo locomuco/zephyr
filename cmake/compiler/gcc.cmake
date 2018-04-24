@@ -11,7 +11,15 @@ find_program(CMAKE_READELF    ${CROSS_COMPILE}readelf PATH ${TOOLCHAIN_HOME} NO_
 find_program(CMAKE_GDB        ${CROSS_COMPILE}gdb     PATH ${TOOLCHAIN_HOME} NO_DEFAULT_PATH)
 find_program(CMAKE_NM         ${CROSS_COMPILE}nm      PATH ${TOOLCHAIN_HOME} NO_DEFAULT_PATH)
 
-assert_exists(CMAKE_READELF)
+if(CMAKE_C_COMPILER STREQUAL CMAKE_C_COMPILER-NOTFOUND)
+  message(FATAL_ERROR "Zephyr was unable to find the toolchain. Is the environment misconfigured?
+User-configuration:
+ZEPHYR_TOOLCHAIN_VARIANT: ${ZEPHYR_TOOLCHAIN_VARIANT}
+Internal variables:
+CROSS_COMPILE: ${CROSS_COMPILE}
+TOOLCHAIN_HOME: ${TOOLCHAIN_HOME}
+")
+endif()
 
 if(CONFIG_CPLUSPLUS)
   set(cplusplus_compiler ${CROSS_COMPILE}g++)
@@ -63,7 +71,7 @@ if("${ARCH}" STREQUAL "arm")
   if(CONFIG_FLOAT)
     list(APPEND TOOLCHAIN_C_FLAGS -mfpu=${FPU_FOR_${GCC_M_CPU}})
     if    (CONFIG_FP_SOFTABI)
-      list(APPEND TOOLCHAIN_C_FLAGS -mfloat-abi=soft)
+      list(APPEND TOOLCHAIN_C_FLAGS -mfloat-abi=softfp)
     elseif(CONFIG_FP_HARDABI)
       list(APPEND TOOLCHAIN_C_FLAGS -mfloat-abi=hard)
     endif()

@@ -51,19 +51,6 @@
 
 #include "net_stats.h"
 
-/* Stack for the rx thread.
- */
-#if !defined(CONFIG_NET_RX_STACK_SIZE)
-#define CONFIG_NET_RX_STACK_SIZE 1024
-#endif
-
-NET_STACK_DEFINE(RX, rx_stack, CONFIG_NET_RX_STACK_SIZE,
-		 CONFIG_NET_RX_STACK_SIZE + CONFIG_NET_RX_STACK_RPL);
-static struct k_thread rx_thread_data;
-static struct k_fifo rx_queue;
-static k_tid_t rx_tid;
-static K_SEM_DEFINE(startup_sync, 0, UINT_MAX);
-
 static inline enum net_verdict process_data(struct net_pkt *pkt,
 					    bool is_loopback)
 {
@@ -83,7 +70,7 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 	/* If there is no data, then drop the packet. */
 	if (!pkt->frags) {
 		NET_DBG("Corrupted packet (frags %p)", pkt->frags);
-		net_stats_update_processing_error();
+		net_stats_update_processing_error(net_pkt_iface(pkt));
 
 		return NET_DROP;
 	}
@@ -93,7 +80,8 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 		if (ret != NET_CONTINUE) {
 			if (ret == NET_DROP) {
 				NET_DBG("Packet %p discarded by L2", pkt);
-				net_stats_update_processing_error();
+				net_stats_update_processing_error(
+							net_pkt_iface(pkt));
 			}
 
 			return ret;
@@ -104,13 +92,13 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 	switch (NET_IPV6_HDR(pkt)->vtc & 0xf0) {
 #if defined(CONFIG_NET_IPV6)
 	case 0x60:
-		net_stats_update_ipv6_recv();
+		net_stats_update_ipv6_recv(net_pkt_iface(pkt));
 		net_pkt_set_family(pkt, PF_INET6);
 		return net_ipv6_process_pkt(pkt);
 #endif
 #if defined(CONFIG_NET_IPV4)
 	case 0x40:
-		net_stats_update_ipv4_recv();
+		net_stats_update_ipv4_recv(net_pkt_iface(pkt));
 		net_pkt_set_family(pkt, PF_INET);
 		return net_ipv4_process_pkt(pkt);
 #endif
@@ -118,8 +106,8 @@ static inline enum net_verdict process_data(struct net_pkt *pkt,
 
 	NET_DBG("Unknown IP family packet (0x%x)",
 		NET_IPV6_HDR(pkt)->vtc & 0xf0);
-	net_stats_update_ip_errors_protoerr();
-	net_stats_update_ip_errors_vhlerr();
+	net_stats_update_ip_errors_protoerr(net_pkt_iface(pkt));
+	net_stats_update_ip_errors_vhlerr(net_pkt_iface(pkt));
 
 	return NET_DROP;
 }
@@ -138,61 +126,25 @@ static void processing_data(struct net_pkt *pkt, bool is_loopback)
 	}
 }
 
-static void net_rx_thread(void)
+/* Things to setup after we are able to RX and TX */
+static void net_post_init(void)
 {
-	struct net_pkt *pkt;
+}
 
-	NET_DBG("Starting RX thread (stack %zu bytes)",
-		K_THREAD_STACK_SIZEOF(rx_stack));
-
+static void init_rx_queues(void)
+{
 	/* Starting TX side. The ordering is important here and the TX
 	 * can only be started when RX side is ready to receive packets.
-	 * We synchronize the startup of the device so that both RX and TX
-	 * are only started fully when both are ready to receive or send
-	 * data.
 	 */
-	net_if_init(&startup_sync);
+	net_if_init();
 
-	k_sem_take(&startup_sync, K_FOREVER);
+	net_tc_rx_init();
 
 	/* This will take the interface up and start everything. */
 	net_if_post_init();
 
-	while (1) {
-#if defined(CONFIG_NET_STATISTICS) || defined(CONFIG_NET_DEBUG_CORE)
-		size_t pkt_len;
-#endif
-
-		pkt = k_fifo_get(&rx_queue, K_FOREVER);
-
-		net_analyze_stack("RX thread", K_THREAD_STACK_BUFFER(rx_stack),
-				  K_THREAD_STACK_SIZEOF(rx_stack));
-
-#if defined(CONFIG_NET_STATISTICS) || defined(CONFIG_NET_DEBUG_CORE)
-		pkt_len = net_pkt_get_len(pkt);
-#endif
-		NET_DBG("Received pkt %p len %zu", pkt, pkt_len);
-
-		net_stats_update_bytes_recv(pkt_len);
-
-		processing_data(pkt, false);
-
-		net_print_statistics();
-		net_pkt_print();
-
-		k_yield();
-	}
-}
-
-static void init_rx_queue(void)
-{
-	k_fifo_init(&rx_queue);
-
-	rx_tid = k_thread_create(&rx_thread_data, rx_stack,
-				 K_THREAD_STACK_SIZEOF(rx_stack),
-				 (k_thread_entry_t)net_rx_thread,
-				 NULL, NULL, NULL, K_PRIO_COOP(8),
-				 K_ESSENTIAL, K_NO_WAIT);
+	/* Things to init after network interface is working */
+	net_post_init();
 }
 
 /* If loopback driver is enabled, then direct packets to it so the address
@@ -303,10 +255,10 @@ int net_send_data(struct net_pkt *pkt)
 #if defined(CONFIG_NET_STATISTICS)
 	switch (net_pkt_family(pkt)) {
 	case AF_INET:
-		net_stats_update_ipv4_sent();
+		net_stats_update_ipv4_sent(net_pkt_iface(pkt));
 		break;
 	case AF_INET6:
-		net_stats_update_ipv6_sent();
+		net_stats_update_ipv6_sent(net_pkt_iface(pkt));
 		break;
 	}
 #endif
@@ -330,22 +282,75 @@ int net_send_data(struct net_pkt *pkt)
 	return 0;
 }
 
+static void net_rx(struct net_if *iface, struct net_pkt *pkt)
+{
+#if defined(CONFIG_NET_STATISTICS) || defined(CONFIG_NET_DEBUG_CORE)
+	size_t pkt_len;
+#if defined(CONFIG_NET_STATISTICS)
+	pkt_len = pkt->total_pkt_len;
+#else
+	pkt_len = net_pkt_get_len(pkt);
+#endif
+#endif
+
+	NET_DBG("Received pkt %p len %zu", pkt, pkt_len);
+
+	net_stats_update_bytes_recv(iface, pkt_len);
+
+	processing_data(pkt, false);
+
+	net_print_statistics();
+	net_pkt_print();
+}
+
+static void process_rx_packet(struct k_work *work)
+{
+	struct net_pkt *pkt;
+
+	pkt = CONTAINER_OF(work, struct net_pkt, work);
+
+	net_rx(net_pkt_iface(pkt), pkt);
+}
+
+static void net_queue_rx(struct net_if *iface, struct net_pkt *pkt)
+{
+	u8_t prio = net_pkt_priority(pkt);
+	u8_t tc = net_rx_priority2tc(prio);
+
+	k_work_init(net_pkt_work(pkt), process_rx_packet);
+
+#if defined(CONFIG_NET_STATISTICS)
+	pkt->total_pkt_len = net_pkt_get_len(pkt);
+
+	net_stats_update_tc_recv_pkt(iface, tc);
+	net_stats_update_tc_recv_bytes(iface, tc, pkt->total_pkt_len);
+	net_stats_update_tc_recv_priority(iface, tc, prio);
+#endif
+
+#if NET_TC_RX_COUNT > 1
+	NET_DBG("TC %d with prio %d pkt %p", tc, prio, pkt);
+#endif
+
+	net_tc_submit_to_rx_queue(tc, pkt);
+}
+
 /* Called by driver when an IP packet has been received */
 int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 {
-	NET_ASSERT(pkt && pkt->frags);
-	NET_ASSERT(iface);
+	if (!pkt || !iface) {
+		return -EINVAL;
+	}
 
 	if (!pkt->frags) {
 		return -ENODATA;
 	}
 
-	if (!atomic_test_bit(iface->flags, NET_IF_UP)) {
+	if (!atomic_test_bit(iface->if_dev->flags, NET_IF_UP)) {
 		return -ENETDOWN;
 	}
 
-	NET_DBG("fifo %p iface %p pkt %p len %zu", &rx_queue, iface, pkt,
-		net_pkt_get_len(pkt));
+	NET_DBG("prio %d iface %p pkt %p len %zu", net_pkt_priority(pkt),
+		iface, pkt, net_pkt_get_len(pkt));
 
 	if (IS_ENABLED(CONFIG_NET_ROUTING)) {
 		net_pkt_set_orig_iface(pkt, iface);
@@ -353,7 +358,7 @@ int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 
 	net_pkt_set_iface(pkt, iface);
 
-	k_fifo_put(&rx_queue, pkt);
+	net_queue_rx(iface, pkt);
 
 	return 0;
 }
@@ -401,7 +406,7 @@ static int net_init(struct device *unused)
 
 	net_mgmt_event_init();
 
-	init_rx_queue();
+	init_rx_queues();
 
 #if CONFIG_NET_DHCPV4
 	status = dhcpv4_init();

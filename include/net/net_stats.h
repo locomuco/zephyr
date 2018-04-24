@@ -15,6 +15,7 @@
 #define __NET_STATS_H
 
 #include <zephyr/types.h>
+#include <net/net_core.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,8 +31,13 @@ extern "C" {
 typedef u32_t net_stats_t;
 
 struct net_stats_bytes {
-	u32_t sent;
-	u32_t received;
+	net_stats_t sent;
+	net_stats_t received;
+};
+
+struct net_stats_pkts {
+	net_stats_t tx;
+	net_stats_t rx;
 };
 
 struct net_stats_ip {
@@ -228,6 +234,23 @@ struct net_stats_ipv6_mld {
 	net_stats_t drop;
 };
 
+struct net_stats_tc {
+	/** Traffic class sent statistics */
+	struct {
+		net_stats_t pkts;
+		net_stats_t bytes;
+		u8_t priority;
+	} sent[NET_TC_TX_COUNT];
+
+	/** Traffic class receive statistics */
+	struct {
+		net_stats_t pkts;
+		net_stats_t bytes;
+		u8_t priority;
+	} recv[NET_TC_RX_COUNT];
+};
+
+
 struct net_stats {
 	net_stats_t processing_error;
 
@@ -270,6 +293,69 @@ struct net_stats {
 #if defined(CONFIG_NET_IPV6_MLD)
 	struct net_stats_ipv6_mld ipv6_mld;
 #endif
+
+#if NET_TC_COUNT > 1
+	struct net_stats_tc tc;
+#endif
+};
+
+struct net_stats_eth_errors {
+	net_stats_t rx_length_errors;
+	net_stats_t rx_over_errors;
+	net_stats_t rx_crc_errors;
+	net_stats_t rx_frame_errors;
+	net_stats_t rx_no_buffer_count;
+	net_stats_t rx_missed_errors;
+	net_stats_t rx_long_length_errors;
+	net_stats_t rx_short_length_errors;
+	net_stats_t rx_align_errors;
+	net_stats_t rx_dma_failed;
+	net_stats_t rx_buf_alloc_failed;
+
+	net_stats_t tx_aborted_errors;
+	net_stats_t tx_carrier_errors;
+	net_stats_t tx_fifo_errors;
+	net_stats_t tx_heartbeat_errors;
+	net_stats_t tx_window_errors;
+	net_stats_t tx_dma_failed;
+
+	net_stats_t uncorr_ecc_errors;
+	net_stats_t corr_ecc_errors;
+};
+
+struct net_stats_eth_flow {
+	net_stats_t rx_flow_control_xon;
+	net_stats_t rx_flow_control_xoff;
+	net_stats_t tx_flow_control_xon;
+	net_stats_t tx_flow_control_xoff;
+};
+
+struct net_stats_eth_csum {
+	net_stats_t rx_csum_offload_good;
+	net_stats_t rx_csum_offload_errors;
+};
+
+struct net_stats_eth_hw_timestamp {
+	net_stats_t rx_hwtstamp_cleared;
+	net_stats_t tx_hwtstamp_timeouts;
+	net_stats_t tx_hwtstamp_skipped;
+};
+
+/* Ethernet specific statistics */
+struct net_stats_eth {
+	struct net_stats_bytes bytes;
+	struct net_stats_pkts pkts;
+	struct net_stats_pkts broadcast;
+	struct net_stats_pkts multicast;
+	struct net_stats_pkts errors;
+	struct net_stats_eth_errors error_details;
+	struct net_stats_eth_flow flow_control;
+	struct net_stats_eth_csum csum;
+	struct net_stats_eth_hw_timestamp hw_timestamp;
+	net_stats_t collisions;
+	net_stats_t tx_dropped;
+	net_stats_t tx_timeout_count;
+	net_stats_t tx_restart_queue;
 };
 
 #if defined(CONFIG_NET_STATISTICS_USER_API)
@@ -294,27 +380,28 @@ enum net_request_stats_cmd {
 	NET_REQUEST_STATS_CMD_GET_UDP,
 	NET_REQUEST_STATS_CMD_GET_TCP,
 	NET_REQUEST_STATS_CMD_GET_RPL,
+	NET_REQUEST_STATS_CMD_GET_ETHERNET,
 };
 
 #define NET_REQUEST_STATS_GET_ALL				\
 	(_NET_STATS_BASE | NET_REQUEST_STATS_CMD_GET_ALL)
 
-//NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_ALL);
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_ALL);
 
 #define NET_REQUEST_STATS_GET_PROCESSING_ERROR				\
 	(_NET_STATS_BASE | NET_REQUEST_STATS_CMD_GET_PROCESSING_ERROR)
 
-//NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_PROCESSING_ERROR);
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_PROCESSING_ERROR);
 
 #define NET_REQUEST_STATS_GET_BYTES				\
 	(_NET_STATS_BASE | NET_REQUEST_STATS_CMD_GET_BYTES)
 
-//NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_BYTES);
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_BYTES);
 
 #define NET_REQUEST_STATS_GET_IP_ERRORS				\
 	(_NET_STATS_BASE | NET_REQUEST_STATS_CMD_GET_IP_ERRORS)
 
-//NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_IP_ERRORS);
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_IP_ERRORS);
 
 #if defined(CONFIG_NET_STATISTICS_IPV4)
 #define NET_REQUEST_STATS_GET_IPV4				\
@@ -364,6 +451,13 @@ NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_TCP);
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_RPL);
 #endif /* CONFIG_NET_STATISTICS_RPL */
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+#define NET_REQUEST_STATS_GET_ETHERNET				\
+	(_NET_STATS_BASE | NET_REQUEST_STATS_CMD_GET_ETHERNET)
+
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_STATS_GET_ETHERNET);
+#endif /* CONFIG_NET_STATISTICS_ETHERNET */
 
 #endif /* CONFIG_NET_STATISTICS_USER_API */
 

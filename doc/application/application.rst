@@ -47,11 +47,14 @@ These contents are:
   such as board-specific kernel configuration files, the ability to run and
   debug compiled binaries on real or emulated hardware, and more.
 
-* **Kernel configuration files**: An application typically provides
-  a configuration file (ending in :file:`.conf`) that specifies values for one
-  or more kernel configuration options. If omitted, the application's existing
-  kernel configuration option values are used; if no existing values are
-  provided, the kernel's default configuration values are used.
+* **Kernel configuration files**: An application typically provides a
+  configuration file (usually called :file:`prj.conf`) that specifies
+  application-specific values for one or more kernel configuration options.
+  These application settings are merged with board-specific settings to produce
+  a kernel configuration.
+
+  The :ref:`application_kconfig` section below goes over application
+  configuration in detail.
 
 * **Application source code files**: An application typically provides one
   or more application-specific files, written in C or assembly language. These
@@ -143,10 +146,11 @@ configure the Zephyr build system:
   application's :file:`CMakeLists.txt` file, or in the ``cmake`` command line.
 
 * :makevar:`CONF_FILE`: Indicates the name of one or more configuration
-  fragment files.  Each file includes kconfig configuration values that
-  override the default configuration values.  Like :makevar:`BOARD`, this can
-  also be defined in the environment, in your application's
-  :file:`CMakeLists.txt` file, or in the ``cmake`` command line.
+  fragment files.  Multiple filenames are separated by a single space.  Each
+  file includes Kconfig configuration values that override the default
+  configuration values.  Like :makevar:`BOARD`, this can also be defined in the
+  environment, in your application's :file:`CMakeLists.txt` file, or in the
+  ``cmake`` command line.
 
 * :makevar:`DTC_OVERLAY_FILE`: Indicates the name of one or more Device Tree
   overlay files.  Each file includes Device Tree values that
@@ -368,7 +372,7 @@ Each time you execute the run command, your application is rebuilt and run
 again.
 
 .. _application_debugging:
-
+.. _custom_board_definition:
 
 Custom Board Definition
 ***********************
@@ -556,6 +560,125 @@ Both commands execute the :abbr:`gdb (GNU Debugger)`. The command name might
 change depending on the toolchain you are using and your cross-development
 tools.
 
+Eclipse Debugging
+*****************
+
+Overview
+========
+
+CMake supports generating a project description file that can be imported into
+the Eclipse Integrated Development Environment (IDE) and used for graphical
+debugging.
+
+The `GNU MCU Eclipse plug-ins`_ provide a mechanism to debug ARM projects in
+Eclipse with pyOCD, Segger J-Link, and OpenOCD debugging tools.
+
+The following tutorial demonstrates how to debug a Zephyr application in
+Eclipse with pyOCD in Windows. It assumes you have already installed the GCC
+ARM Embedded toolchain and pyOCD.
+
+Set Up the Eclipse Development Environment
+==========================================
+
+#. Download and install `Eclipse IDE for C/C++ Developers`_.
+
+#. In Eclipse, install the GNU MCU Eclipse plug-ins by opening the menu
+   ``Window->Eclipse Marketplace...``, searching for ``GNU MCU Eclipse``, and
+   clicking ``Install`` on the matching result.
+
+#. Configure the path to the pyOCD GDB server by opening the menu
+   ``Window->Preferences``, navigating to ``MCU``, and setting the ``Global
+   pyOCD Path``.
+
+Generate and Import an Eclipse Project
+======================================
+
+#. At a command line, configure your environment to use the GCC ARM Embedded
+   compiler as shown in :ref:`third_party_x_compilers`.
+
+#. Navigate to a folder outside of the Zephyr tree to build your application.
+
+   .. code-block:: console
+
+      # On Windows
+      cd %userprofile%
+
+   .. note::
+      If the build directory is a subdirectory of the source directory, as is
+      usually done in Zephyr, CMake will warn:
+
+      "The build directory is a subdirectory of the source directory.
+
+      This is not supported well by Eclipse.  It is strongly recommended to use
+      a build directory which is a sibling of the source directory."
+
+#. Configure your application with CMake and build it with ninja. Note the
+   different CMake generator specified by the ``-G"Eclipse CDT4 - Ninja"``
+   argument. This will generate an Eclipse project description file,
+   :file:`.project`, in addition to the usual ninja build files.
+
+   .. code-block:: console
+
+      # On Windows
+      mkdir build && cd build
+      cmake -G"Eclipse CDT4 - Ninja" -DBOARD=frdm_k64f %ZEPHYR_BASE%\samples\synchronization
+      ninja
+
+#. In Eclipse, import your generated project by opening the menu
+   ``File->Import...`` and selecting the option ``Existing Projects into
+   Workspace``. Browse to your application build directory in the choice,
+   ``Select root directory:``. Check the box for your project in the list of
+   projects found and click the ``Finish`` button.
+
+Create a Debugger Configuration
+===============================
+
+#. Open the menu ``Run->Debug Configurations...``.
+
+#. Select ``GDB PyOCD Debugging``, click the ``New`` button, and configure the
+   following options:
+
+   - In the Main tab:
+
+     - Project: NONE@build
+     - C/C++ Application: :file:`zephyr/zephyr.elf`
+
+   - In the Debugger tab:
+
+     - pyOCD Setup
+
+       - Executable path: :file:`${pyocd_path}\\${pyocd_executable}`
+       - Uncheck "Allocate console for semihosting"
+
+     - Board Setup
+
+       - Bus speed: 8000000 Hz
+       - Uncheck "Enable semihosting"
+
+     - GDB Client Setup
+
+       - Executable path:
+         :file:`C:\\gcc-arm-none-eabi-6_2017-q2-update\\bin\\arm-none-eabi-gdb.exe`
+
+   - In the SVD Path tab:
+
+     - File path: :file:`<zephyr
+       base>\\ext\\hal\\nxp\\mcux\\devices\\MK64F12\\MK64F12.xml`
+
+     .. note::
+	This is optional. It provides the SoC's memory-mapped register
+	addresses and bitfields to the debugger.
+
+#. Click the ``Debug`` button to start debugging.
+
+RTOS Awareness
+==============
+
+Experimental support for Zephyr RTOS awareness is implemented in `pyOCD PR
+#333`_. It is compatible with GDB PyOCD Debugging in Eclipse, but you must
+download this pull request and build pyOCD from source. You must also enable
+CONFIG_OPENOCD_SUPPORT=y in your application.
+
 CMake Details
 *************
 
@@ -640,6 +763,7 @@ Make sure to follow these steps in order.
    the usual :file:`prj.conf` (or :file:`prj_YOUR_BOARD.conf`, where
    ``YOUR_BOARD`` is a board name), add lines setting the
    :makevar:`CONF_FILE` variable to these files appropriately.
+   If multiple filenames are given, separate them by a single space.
 
    More details are available below in :ref:`application_kconfig`.
 
@@ -712,44 +836,49 @@ Application Configuration
 Kconfig Configuration
 =====================
 
-The application is configured using a set of options that can be customized for
-application-specific purposes. The Zephyr build system takes a configuration
-option's value from the first source in which it is specified, taken from the
-following available sources, in order:
+The initial configuration for an application is produced by merging
+configuration settings from two sources:
 
-#. An application's current configuration (i.e. the file
-   :file:`zephyr/.config` in the build directory). This can be used
-   during development as described below in :ref:`override_kernel_conf`.
+1. A :makevar:`BOARD`-specific configuration file, stored in
+   :file:`boards/ARCHITECTURE/BOARD/BOARD_defconfig` in the Zephyr base
+   directory.
 
-#. The application's configuration file(s) given by the
-   :makevar:`CONF_FILE` variable, either as set explicitly by the user
-   or using one of the default values detailed below.
+2. One or more application-specific configuration files.
 
-#. The board's default configuration for the current :makevar:`BOARD`
-   setting (i.e. the :file:`boards/ARCHITECTURE/BOARD/BOARD_defconfig`
-   file in the Zephyr base directory).
+The application-specific configuration file(s) can be specified in any of the
+following ways. The simplest option is to just have a single :file:`prj.conf`
+file.
 
-#. The kernel's default configuration settings (i.e. the default value given to
-   the option in one of Zephyr's :file:`Kconfig` files).
+1. If :makevar:`CONF_FILE` is set in :file:`CMakeLists.txt` (**before including
+   the boilerplate.cmake file**), or is present in the CMake variable cache,
+   the configuration files specified in it are merged and used as the
+   application-specific settings.
 
-The Zephyr build system determines a value for :makevar:`CONF_FILE` by
-checking the following until one is found, in order:
+   Alternatively, an application may define a CMake command, macro, or function
+   called ``set_conf_file``, which is invoked and is expected to set
+   :makevar:`CONF_FILE`.
 
-- Any value given to :makevar:`CONF_FILE` in your application
-  :file:`CMakeLists.txt` (**before including the boilerplate.cmake file**),
-  passed to the the CMake command line, or present in the CMake variable cache,
-  takes precedence.
+2. Otherwise (if (1.) does not apply), if a file :file:`prj_BOARD.conf` exists
+   in the application directory, where :makevar:`BOARD` is the BOARD value set
+   earlier, the settings in it are used.
 
-- If a CMake command, macro, or function ``set_conf_file`` is defined, it
-  will be invoked and must set :makevar:`CONF_FILE`.
+3. Otherwise, if a file :file:`prj.conf` exists in the application directory,
+   the settings in it are used.
 
-- If the file :file:`prj_BOARD.conf` exists in your application directory,
-  where ``BOARD`` is the BOARD value set earlier, it will be used.
+4. Otherwise, there are no application-specific settings, and just the settings
+   in the :makevar:`BOARD`-specific configuration are used.
 
-- Finally, if :file:`prj.conf` exists in your application directory, it will
-  be used.
+Configuration settings that are specified in neither the :makevar:`BOARD`
+configuration file nor in the application configuration file(s) fall back on
+their default value, as given in the :file:`Kconfig` files.
 
-If :makevar:`CONF_FILE` specifies multiple files, they will be merged in order.
+The merged configuration is saved in :file:`zephyr/.config` in the build
+directory.
+
+As long as :file:`zephyr/.config` exists and is up-to-date (is newer than the
+:makevar:`BOARD` and application configuration files), it will be used in
+preference to producing a new merged configuration. This can be used during
+development, as described below in :ref:`override_kernel_conf`.
 
 For information on available kernel configuration options, including
 inter-dependencies between options, see the :ref:`configuration`.
@@ -861,26 +990,18 @@ preferred, since it correctly handles dependencies between options.
 
    * Use the arrow keys to navigate within any menu or list.
 
-   * Press :kbd:`Enter` to select a menu item.
+   * Press :kbd:`Enter` to enter submenus and choices, which appear with
+     ``--->`` next to them.
 
-   * Type an upper case :kbd:`Y` or :kbd:`N` in the
-      square brackets :guilabel:`[ ]` to
-      enable or disable a kernel configuration option.
-
-   * Type a numerical value in the parentheses :guilabel:`( )`.
+   * Press :kbd:`Space` to toggle or configure a symbol value. Boolean
+     configuration symbols are shown with :guilabel:`[ ]` brackets, while
+     numeric and string-valued configuration symbols are shown with
+     :guilabel:`( )` brackets.
 
    * Press :kbd:`Tab` to navigate the command menu at the bottom of the
      display.
 
-     .. note::
-
-       When a non-default entry is selected for options that are non-numerical,
-       an asterisk :kbd:`*` appears between the square brackets in the display.
-       There is nothing added added the display when you select the option's
-       default.
-
-#. For information about any option, select the option and tab to
-   :guilabel:`<Help >` and press :kbd:`Enter`.
+#. For information about any symbol, select the symbol and type :kbd:`?`.
 
    Press :kbd:`Enter` to return to the menu.
 
@@ -1061,3 +1182,7 @@ third-party build system.
 
 :file:`samples/application_development/external_lib` is a sample
 project that demonstrates some of these features.
+
+.. _Eclipse IDE for C/C++ Developers: https://www.eclipse.org/downloads/packages/eclipse-ide-cc-developers/oxygen2
+.. _GNU MCU Eclipse plug-ins: https://gnu-mcu-eclipse.github.io/plugins/install/
+.. _pyOCD PR #333: https://github.com/mbedmicro/pyOCD/pull/333

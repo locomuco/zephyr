@@ -590,7 +590,7 @@ static inline void flush_ep_usb_events(void)
 }
 
 /** Interrupt mask to event register map */
-#define USBD_INT_CNT 26
+#define USBD_INT_CNT 25
 
 static const u32_t event_map[USBD_INT_CNT] = {
 	NRF_USBD_EVENT_USBRESET,
@@ -618,7 +618,6 @@ static const u32_t event_map[USBD_INT_CNT] = {
 	NRF_USBD_EVENT_USBEVENT,
 	NRF_USBD_EVENT_EP0SETUP,
 	NRF_USBD_EVENT_DATAEP,
-	NRF_USBD_EVENT_ACCESSFAULT,
 };
 
 static void usb_reset_handler(u32_t pos)
@@ -844,13 +843,6 @@ static void epdata_handler(u32_t pos)
 	enqueue_ep_usb_event(ev);
 }
 
-static void access_fault_handler(u32_t pos)
-{
-	ARG_UNUSED(pos);
-	SYS_LOG_ERR("USBD Access Fault!");
-	__ASSERT_NO_MSG(0);
-}
-
 typedef void (*isr_event_handler_t)(u32_t pos);
 
 static const isr_event_handler_t isr_event_handlers[USBD_INT_CNT] = {
@@ -879,7 +871,6 @@ static const isr_event_handler_t isr_event_handlers[USBD_INT_CNT] = {
 	usb_event_handler,
 	ep0setup_handler,
 	epdata_handler,
-	access_fault_handler,
 };
 
 /** Process interrupts that are enabled */
@@ -957,7 +948,6 @@ static void usbd_enable_interrupts(void)
 
 	ctx->enable_mask = NRF_USBD_INT_USBRESET_MASK |
 			   NRF_USBD_INT_USBEVENT_MASK |
-			   NRF_USBD_INT_ACCESSFAULT_MASK |
 			   NRF_USBD_INT_DATAEP_MASK;
 
 	nrf_usbd_int_enable(ctx->enable_mask);
@@ -1307,18 +1297,18 @@ static inline void handle_data_ep_idle_state_events(struct ep_usb_event *ev)
 	case EP_DATA_RECV:
 	{
 		struct nrf5_usbd_ctx *ctx = get_usbd_ctx();
+		u8_t addr = ep_ctx->cfg.addr;
 
 		/**
 		 * We have some OUT BULK/INTERRUT data received
 		 * into the USBD's local buffer. Let's grab it.
 		 */
-		nrf_usbd_ep_easydma_set(ep_ctx->cfg.addr,
-					(u32_t)ep_ctx->buf.data,
-					ep_ctx->cfg.max_sz);
+		nrf_usbd_ep_easydma_set(addr, (u32_t)ep_ctx->buf.data,
+					nrf_usbd_epout_size_get(addr));
 
 		/* Only one DMA can happen at a time */
 		k_sem_take(&ctx->dma_in_use, K_FOREVER);
-		start_epout_task(ep_ctx->cfg.addr);
+		start_epout_task(addr);
 	}
 		break;
 	case EP_WRITE_COMPLETE:
@@ -1413,6 +1403,7 @@ static inline void handle_iso_ep_idle_state_events(struct ep_usb_event *ev)
 	case EP_SOF:
 	{
 		struct nrf5_usbd_ctx *ctx = get_usbd_ctx();
+		u8_t addr = ep_ctx->cfg.addr;
 
 		if (NRF_USBD_EPOUT_CHECK(ep_ctx->cfg.addr)) {
 			/**
@@ -1421,23 +1412,26 @@ static inline void handle_iso_ep_idle_state_events(struct ep_usb_event *ev)
 			 * will transfer the OUT data anyway if DMA is set up.
 			 */
 
-			/**
-			 * Have anything in the ISO OUT buffer to write to
-			 * USB bus?
-			 */
-			if (ep_ctx->buf.len) {
-				nrf_usbd_ep_easydma_set(ep_ctx->cfg.addr,
+			/** Is buffer available? */
+			if (!ep_ctx->buf.len) {
+				u32_t maxcnt;
+
+				maxcnt = nrf_usbd_episoout_size_get(addr);
+				nrf_usbd_ep_easydma_set(addr,
 							(u32_t)ep_ctx->buf.data,
-							ep_ctx->cfg.max_sz);
+							maxcnt);
 
 				/* Only one DMA can happen at a time */
 				k_sem_take(&ctx->dma_in_use, K_FOREVER);
-				start_epout_task(ep_ctx->cfg.addr);
+				start_epout_task(addr);
 			}
 		} else {
-			/** Is buffer available? */
-			if (!ep_ctx->buf.len) {
-				nrf_usbd_ep_easydma_set(ep_ctx->cfg.addr,
+			/**
+			 * Have anything in the ISO IN buffer to write to
+			 * USB bus?
+			 */
+			if (ep_ctx->buf.len) {
+				nrf_usbd_ep_easydma_set(addr,
 							(u32_t)ep_ctx->buf.data,
 							ep_ctx->cfg.max_sz);
 
@@ -1449,7 +1443,7 @@ static inline void handle_iso_ep_idle_state_events(struct ep_usb_event *ev)
 				 * the sem back in ISR?
 				 */
 				k_sem_take(&ctx->dma_in_use, K_FOREVER);
-				start_epin_task(ep_ctx->cfg.addr);
+				start_epin_task(addr);
 			}
 		}
 	}
@@ -2207,4 +2201,20 @@ int usb_dc_set_status_callback(const usb_dc_status_callback cb)
 	get_usbd_ctx()->status_cb = cb;
 
 	return 0;
+}
+
+int usb_dc_ep_mps(const u8_t ep)
+{
+	struct nrf5_usbd_ep_ctx *ep_ctx;
+
+	if (!dev_attached()) {
+		return -ENODEV;
+	}
+
+	ep_ctx = endpoint_ctx(ep);
+	if (!ep_ctx) {
+		return -EINVAL;
+	}
+
+	return ep_ctx->cfg.max_sz;
 }

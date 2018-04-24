@@ -23,11 +23,8 @@
 #include "hal/cntr.h"
 #include "hal/ccm.h"
 #include "hal/radio.h"
+#include "hal/ticker.h"
 #include "hal/debug.h"
-
-#if defined(CONFIG_SOC_FAMILY_NRF5)
-#include "hal/nrf5/ticker.h"
-#endif /* CONFIG_SOC_FAMILY_NRF5 */
 
 #include "util/util.h"
 #include "util/mem.h"
@@ -44,7 +41,7 @@
 
 /* Global singletons */
 
-#if defined(CONFIG_SOC_FLASH_NRF5_RADIO_SYNC)
+#if defined(CONFIG_SOC_FLASH_NRF_RADIO_SYNC)
 #define FLASH_TICKER_NODES        1 /* No. of tickers reserved for flashing */
 #define FLASH_TICKER_USER_APP_OPS 1 /* No. of additional ticker operations */
 #else

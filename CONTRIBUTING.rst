@@ -179,16 +179,15 @@ Pull Requests and Issues
 
 .. _open pull requests: https://github.com/zephyrproject-rtos/zephyr/pulls
 
-.. _Zephyr-devel mailing list:
-   https://lists.zephyrproject.org/mailman/listinfo/zephyr-devel
+.. _Zephyr devel mailing list: https://lists.zephyrproject.org/g/devel
 
 Before starting on a patch, first check in our issues `Zephyr Project Issues`_
 system to see what's been reported on the issue you'd like to address.  Have a
-conversation on the `Zephyr-devel mailing list`_ (or the #zephyrproject IRC
+conversation on the `Zephyr devel mailing list`_ (or the #zephyrproject IRC
 channel on freenode.net) to see what others think of your issue (and proposed
 solution).  You may find others that have encountered the issue you're
 finding, or that have similar ideas for changes or additions.  Send a message
-to the `Zephyr-devel mailing list`_ to introduce and discuss your idea with
+to the `Zephyr devel mailing list`_ to introduce and discuss your idea with
 the development community.
 
 Please note that it's common practice on IRC to be away from the
@@ -224,9 +223,14 @@ CI is run on the ``shippable`` cloud service and it uses the same tools
 described in the `Contribution Tools`_ section.
 The CI results must be green indicating "All checks have passed" before
 the Pull Request can be merged.  CI is run when the PR is created, and
-again every time the PR is modified with a commit.  You can also force
-the CI system to recheck a PR by adding a comment to the PR saying
-simply ``retest`` in the message (helpful if the CI system fails unexpectedly).
+again every time the PR is modified with a commit.
+
+.. note::
+
+   You can also force
+   the CI system to recheck a PR by adding a comment to the PR saying
+   simply ``recheck`` in the message (helpful if the CI system fails
+   unexpectedly).
 
 The current status of the CI run can always be found at the bottom of the
 GitHub PR page, below the review status. Depending on the success or failure
@@ -312,9 +316,9 @@ standards together with a configuration file we've provided:
 .. code-block:: bash
 
    # On Linux/macOS
-   uncrustify --replace --no-backup -l C -c $ZEPHYR_BASE/scripts/uncrustify.cfg my_source_file.c
+   uncrustify --replace --no-backup -l C -c $ZEPHYR_BASE/.uncrustify.cfg my_source_file.c
    # On Windows
-   uncrustify --replace --no-backup -l C -c %ZEPHYR_BASE%\scripts\uncrustify.cfg my_source_file.c
+   uncrustify --replace --no-backup -l C -c %ZEPHYR_BASE%\.uncrustify.cfg my_source_file.c
 
 On Linux systems, you can install uncrustify with
 

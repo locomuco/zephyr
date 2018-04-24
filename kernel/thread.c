@@ -227,16 +227,8 @@ void _impl_k_thread_start(struct k_thread *thread)
 	}
 
 	_mark_thread_as_started(thread);
-
-	if (_is_thread_ready(thread)) {
-		_add_thread_to_ready_q(thread);
-		if (_must_switch_threads()) {
-			_Swap(key);
-			return;
-		}
-	}
-
-	irq_unlock(key);
+	_ready_thread(thread);
+	_reschedule(key);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -264,12 +256,44 @@ static void schedule_new_thread(struct k_thread *thread, s32_t delay)
 }
 #endif
 
+#if !CONFIG_STACK_POINTER_RANDOM
+static inline size_t adjust_stack_size(size_t stack_size)
+{
+	return stack_size;
+}
+#else
+static inline size_t adjust_stack_size(size_t stack_size)
+{
+	/* Don't need to worry about alignment of the size here, _new_thread()
+	 * is required to do it
+	 *
+	 * FIXME: Not the best way to get a random number in a range.
+	 * See #6493
+	 */
+	const size_t fuzz = sys_rand32_get() % CONFIG_STACK_POINTER_RANDOM;
+
+	if (unlikely(fuzz * 2 > stack_size)) {
+		return stack_size;
+	}
+
+	return stack_size - fuzz;
+}
+
+#if defined(CONFIG_STACK_GROWS_UP)
+	/* This is so rare not bothering for now */
+#error "Stack pointer randomization not implemented for upward growing stacks"
+#endif /* CONFIG_STACK_GROWS_UP */
+
+#endif /* CONFIG_STACK_POINTER_RANDOM */
+
 void _setup_new_thread(struct k_thread *new_thread,
 		       k_thread_stack_t *stack, size_t stack_size,
 		       k_thread_entry_t entry,
 		       void *p1, void *p2, void *p3,
 		       int prio, u32_t options)
 {
+	stack_size = adjust_stack_size(stack_size);
+
 	_new_thread(new_thread, stack, stack_size, entry, p1, p2, p3,
 		    prio, options);
 #ifdef CONFIG_USERSPACE
@@ -322,8 +346,9 @@ _SYSCALL_HANDLER(k_thread_create,
 {
 	int prio;
 	u32_t options, delay;
+	u32_t total_size;
 #ifndef CONFIG_MPU_REQUIRES_POWER_OF_TWO_ALIGNMENT
-	u32_t guard_size, total_size;
+	u32_t guard_size;
 #endif
 	struct _k_object *stack_object;
 	struct k_thread *new_thread = (struct k_thread *)new_thread_p;
@@ -352,12 +377,13 @@ _SYSCALL_HANDLER(k_thread_create,
 						     &total_size),
 			    "stack size overflow (%u+%u)", stack_size,
 			    guard_size);
-
+#else
+	total_size = stack_size;
+#endif
 	/* They really ought to be equal, make this more strict? */
 	_SYSCALL_VERIFY_MSG(total_size <= stack_object->data,
 			    "stack size %u is too big, max is %u",
 			    total_size, stack_object->data);
-#endif
 
 	/* Verify the struct containing args 6-10 */
 	_SYSCALL_MEMORY_READ(margs, sizeof(*margs));
@@ -379,7 +405,7 @@ _SYSCALL_HANDLER(k_thread_create,
 	/* Check validity of prio argument; must be the same or worse priority
 	 * than the caller
 	 */
-	_SYSCALL_VERIFY(_VALID_PRIO(prio, NULL));
+	_SYSCALL_VERIFY(_is_valid_prio(prio, NULL));
 	_SYSCALL_VERIFY(_is_prio_lower_or_equal(prio, _current->base.prio));
 
 	_setup_new_thread((struct k_thread *)new_thread, stack, stack_size,
@@ -449,10 +475,7 @@ _SYSCALL_HANDLER1_SIMPLE_VOID(k_thread_suspend, K_OBJ_THREAD, k_tid_t);
 void _k_thread_single_resume(struct k_thread *thread)
 {
 	_mark_thread_as_not_suspended(thread);
-
-	if (_is_thread_ready(thread)) {
-		_add_thread_to_ready_q(thread);
-	}
+	_ready_thread(thread);
 }
 
 void _impl_k_thread_resume(struct k_thread *thread)
@@ -461,7 +484,7 @@ void _impl_k_thread_resume(struct k_thread *thread)
 
 	_k_thread_single_resume(thread);
 
-	_reschedule_threads(key);
+	_reschedule(key);
 }
 
 #ifdef CONFIG_USERSPACE
@@ -478,7 +501,7 @@ void _k_thread_single_abort(struct k_thread *thread)
 		_remove_thread_from_ready_q(thread);
 	} else {
 		if (_is_thread_pending(thread)) {
-			_unpend_thread(thread);
+			_unpend_thread_no_timeout(thread);
 		}
 		if (_is_thread_timeout_active(thread)) {
 			_abort_thread_timeout(thread);

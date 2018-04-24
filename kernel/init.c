@@ -31,16 +31,9 @@
 #include <kswap.h>
 
 /* kernel build timestamp items */
-
 #define BUILD_TIMESTAMP "BUILD: " __DATE__ " " __TIME__
 
-#ifdef CONFIG_BUILD_TIMESTAMP
-const char * const build_timestamp = BUILD_TIMESTAMP;
-#endif
-
 /* boot banner items */
-
-static const unsigned int boot_delay;
 #if defined(CONFIG_BOOT_DELAY) && CONFIG_BOOT_DELAY > 0
 #define BOOT_DELAY_BANNER " (delayed boot "	\
 	STRINGIFY(CONFIG_BOOT_DELAY) "ms)"
@@ -49,16 +42,19 @@ static const unsigned int boot_delay = CONFIG_BOOT_DELAY;
 #define BOOT_DELAY_BANNER ""
 static const unsigned int boot_delay;
 #endif
-#define BOOT_BANNER "BOOTING ZEPHYR OS v"	\
-	KERNEL_VERSION_STRING BOOT_DELAY_BANNER
+
+#ifdef BUILD_VERSION
+#define BOOT_BANNER "Booting Zephyr OS "	\
+	 STRINGIFY(BUILD_VERSION) BOOT_DELAY_BANNER
+#else
+#define BOOT_BANNER "Booting Zephyr OS "	\
+	 KERNEL_VERSION_STRING BOOT_DELAY_BANNER
+#endif
 
 #if !defined(CONFIG_BOOT_BANNER)
 #define PRINT_BOOT_BANNER() do { } while (0)
-#elif !defined(CONFIG_BUILD_TIMESTAMP)
-#define PRINT_BOOT_BANNER() printk("***** " BOOT_BANNER " *****\n")
 #else
-#define PRINT_BOOT_BANNER() \
-	printk("***** " BOOT_BANNER " - %s *****\n", build_timestamp)
+#define PRINT_BOOT_BANNER() printk("***** " BOOT_BANNER " *****\n")
 #endif
 
 /* boot time measurement items */
@@ -274,7 +270,7 @@ static void init_idle_thread(struct k_thread *thr, k_thread_stack_t *stack)
 			  IDLE_STACK_SIZE, idle, NULL, NULL, NULL,
 			  K_LOWEST_THREAD_PRIO, K_ESSENTIAL);
 	_mark_thread_as_started(thr);
-	_add_thread_to_ready_q(thr);
+	_ready_thread(thr);
 }
 #endif
 
@@ -352,7 +348,7 @@ static void prepare_multithreading(struct k_thread *dummy_thread)
 			  NULL, NULL, NULL,
 			  CONFIG_MAIN_THREAD_PRIORITY, K_ESSENTIAL);
 	_mark_thread_as_started(_main_thread);
-	_add_thread_to_ready_q(_main_thread);
+	_ready_thread(_main_thread);
 
 #ifdef CONFIG_MULTITHREADING
 	init_idle_thread(_idle_thread, _idle_stack);

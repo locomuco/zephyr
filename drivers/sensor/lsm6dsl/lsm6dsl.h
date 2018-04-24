@@ -11,8 +11,9 @@
 #ifndef __SENSOR_LSM6DSL_H__
 #define __SENSOR_LSM6DSL_H__
 
+#include <sensor.h>
 #include <zephyr/types.h>
-#include <i2c.h>
+#include <gpio.h>
 #include <misc/util.h>
 
 
@@ -689,12 +690,24 @@
 #endif
 
 struct lsm6dsl_config {
-	char *i2c_master_dev_name;
-	u16_t i2c_slave_addr;
+	char *comm_master_dev_name;
+};
+
+struct lsm6dsl_data;
+
+struct lsm6dsl_transfer_function {
+	int (*read_data)(struct lsm6dsl_data *data, u8_t reg_addr,
+			 u8_t *value, u8_t len);
+	int (*write_data)(struct lsm6dsl_data *data, u8_t reg_addr,
+			  u8_t *value, u8_t len);
+	int (*read_reg)(struct lsm6dsl_data *data, u8_t reg_addr,
+			u8_t *value);
+	int (*update_reg)(struct lsm6dsl_data *data, u8_t reg_addr,
+			  u8_t mask, u8_t value);
 };
 
 struct lsm6dsl_data {
-	struct device *i2c_master;
+	struct device *comm_master;
 	int accel_sample_x;
 	int accel_sample_y;
 	int accel_sample_z;
@@ -704,7 +717,37 @@ struct lsm6dsl_data {
 #if defined(CONFIG_LSM6DSL_ENABLE_TEMP)
 	int temp_sample;
 #endif
+	const struct lsm6dsl_transfer_function *hw_tf;
+
+#ifdef CONFIG_LSM6DSL_TRIGGER
+	struct device *gpio;
+	struct gpio_callback gpio_cb;
+
+	struct sensor_trigger data_ready_trigger;
+	sensor_trigger_handler_t data_ready_handler;
+
+#if defined(CONFIG_LSM6DSL_TRIGGER_OWN_THREAD)
+	K_THREAD_STACK_MEMBER(thread_stack, CONFIG_LSM6DSL_THREAD_STACK_SIZE);
+	struct k_thread thread;
+	struct k_sem gpio_sem;
+#elif defined(CONFIG_LSM6DSL_TRIGGER_GLOBAL_THREAD)
+	struct k_work work;
+	struct device *dev;
+#endif
+
+#endif /* CONFIG_LSM6DSL_TRIGGER */
 };
+
+int lsm6dsl_spi_init(struct device *dev);
+int lsm6dsl_i2c_init(struct device *dev);
+
+#ifdef CONFIG_LSM6DSL_TRIGGER
+int lsm6dsl_trigger_set(struct device *dev,
+			const struct sensor_trigger *trig,
+			sensor_trigger_handler_t handler);
+
+int lsm6dsl_init_interrupt(struct device *dev);
+#endif
 
 #define SYS_LOG_DOMAIN "LSM6DSL"
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_SENSOR_LEVEL
