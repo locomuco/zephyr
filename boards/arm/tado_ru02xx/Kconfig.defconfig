@@ -42,4 +42,17 @@ config UART_NRF5_GPIO_CTS_PIN
 
 endif # UART_NRF5
 
+if FLASH && SPI
+
+config SPI_FLASH_W25QXXDV
+	def_bool y
+
+config GPIO
+	def_bool y
+
+config SPI_CS_GPIO
+	def_bool y
+
+endif # FLASH && SPI
+
 endif # BOARD_TADO_RU02XX
