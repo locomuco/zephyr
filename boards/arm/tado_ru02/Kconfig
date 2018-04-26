@@ -1,10 +1,10 @@
-# Kconfig - tado° RU02XX board configuration
+# Kconfig - tado° RU02 board configuration
 #
 # Copyright (c) 2017 Tado GmbH
 #
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_TADO_RU02XX
+if BOARD_TADO_RU02
 
 config  GPIO_AS_PINRESET
 	bool "GPIO as pin reset (reset button)"
@@ -14,4 +14,4 @@ config NFCT_PINS_AS_GPIOS
 	bool "NFCT pins as GPIO"
 	default y
 
-endif # BOARD_TADO_RU02XX
+endif # BOARD_TADO_RU02

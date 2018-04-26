@@ -8,7 +8,7 @@
 #include <nordic/nrf52832.dtsi>
 
 / {
-	model = "Tado RU02XX";
+	model = "Tado RU02";
 	compatible = "nordic,pca10040-dk", "nordic,nrf52832-qfaa",
 		     "nordic,nrf52832";
 
