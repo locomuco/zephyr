@@ -1,13 +1,13 @@
-# Kconfig - tado° RU02XX board configuration
+# Kconfig - tado° RU02 board configuration
 #
 # Copyright (c) 2017 Tado GmbH
 #
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_TADO_RU02XX
+if BOARD_TADO_RU02
 
 config BOARD
-	default tado_ru02xx
+	default tado_ru02
 
 if SOC_FLASH_NRF5 
 

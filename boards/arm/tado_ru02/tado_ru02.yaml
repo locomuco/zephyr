@@ -1,5 +1,5 @@
-identifier: tado_ru02xx
-name: TADO_RU02XX
+identifier: tado_ru02
+name: TADO_RU02
 type: mcu
 arch: arm
 toolchain:
