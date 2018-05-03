@@ -11,6 +11,7 @@
 #include <gpio.h>
 #include <sys_io.h>
 #include <board.h>
+#include <ieee802154/cc1101.h>
 
 #include <pinmux/stm32/pinmux_stm32.h>
 
@@ -58,6 +59,27 @@ static int pinmux_stm32_init(struct device *port)
 	gpio_pin_write(gpiob, LED1_GPIO_PIN, 1);
 
 	return 0;
+}
+
+
+static struct cc1101_gpio_configuration cc1101_gpios[CC1101_GPIO_IDX_MAX] = {
+	{ .dev = NULL, .pin = CONFIG_IEEE802154_CC1101_GDO0_INT_PIN, },
+};
+struct cc1101_gpio_configuration *cc1101_configure_gpios(void)
+{
+	const int flags_int_in = (GPIO_DIR_IN | GPIO_INT |
+				  GPIO_INT_EDGE |
+				  GPIO_INT_DOUBLE_EDGE |
+				  GPIO_INT_DEBOUNCE);
+	struct device *gpio;
+
+	gpio = device_get_binding(CONFIG_IEEE802154_CC1101_GDO0_INT_PORT);
+	gpio_pin_configure(gpio, cc1101_gpios[CC1101_GPIO_IDX_GPIO0].pin,
+			   flags_int_in);
+
+	cc1101_gpios[CC1101_GPIO_IDX_GPIO0].dev = gpio;
+
+	return cc1101_gpios;
 }
 
 SYS_INIT(pinmux_stm32_init, PRE_KERNEL_1,

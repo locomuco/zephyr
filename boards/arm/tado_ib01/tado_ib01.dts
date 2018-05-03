@@ -32,6 +32,10 @@
 	status = "ok";
 };
 
+&spi1 {
+	status = "ok";
+};
+
 &spi2 {
 	status = "ok";
 };
